@@ -64,7 +64,7 @@ export const achievements = [
     },
     {
       id: 10,
-      title: 'Photographer',
+      title: 'Photo Master',
       description: 'For taking and uploading photos of significant places. Well done :)',
       icon: 'camera',
       iconType: 'FontAwesome5',
