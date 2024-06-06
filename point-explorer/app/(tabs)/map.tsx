@@ -14,10 +14,12 @@ import polyline from 'polyline';
 import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
 import { useColorScheme } from 'react-native';
+import { useNavigation } from 'expo-router';
 
 const { height: screenHeight } = Dimensions.get('window');
 
 const MapScreen: React.FC = () => {
+  const navigation = useNavigation();
   const [location, setLocation] = useState<Region | null>(null);
   const [search, setSearch] = useState('');
   const [highlightedLandmark, setHighlightedLandmark] = useState<Landmark | null>(null);
@@ -41,7 +43,7 @@ const MapScreen: React.FC = () => {
   const bottomSheetHandleColor = colorScheme === 'light' ? '#ccc' : '#444';
   const arrowIconColor = useThemeColor({ light: 'black', dark: 'white' }, 'text');
   const directionsButtonColor = '#2f95dc';
-  const landmarkCardColor = colorScheme === 'light' ? '#e6e6e6' : '#121212';
+  const landmarkCardColor = colorScheme === 'light' ? '#e6e6e6' : '#101010';
 
   const bottomSheetInitialHeight = 300;
   const bottomSheetFullHeight = 700;
@@ -251,6 +253,10 @@ const MapScreen: React.FC = () => {
       }
       return newFavorites;
     });
+  };
+
+  const handleLearnMorePress = (landmark: Landmark) => {
+    navigation.navigate('landmarkDetails', { landmark });
   };
 
   const filteredLandmarks = search
@@ -481,7 +487,10 @@ const MapScreen: React.FC = () => {
   };
 
   const renderExploreItem = ({ item }: { item: Landmark }) => (
-    <View style={[styles.exploreItem, { backgroundColor: landmarkCardColor }]}>
+    <TouchableOpacity
+      style={[styles.exploreItem, { backgroundColor: landmarkCardColor }]}
+      onPress={() => handleLearnMorePress(item)}
+    >
       <View style={styles.exploreItemImageContainer}>
         <Image source={item.image} style={styles.exploreItemImage} />
         <TouchableOpacity style={styles.favoriteIcon} onPress={() => handleFavoritePress(item.id)}>
@@ -496,9 +505,11 @@ const MapScreen: React.FC = () => {
             <FontAwesome6 name="arrow-alt-circle-right" size={24} color={directionsButtonColor} />
           </TouchableOpacity>
         </View>
-        <Text style={[styles.exploreItemLocation, { color: landmarkTextColor }]}>{item.location}</Text>
+        <TouchableOpacity style={[styles.learnMoreButton, { justifyContent: 'center', alignItems: 'center' }]} onPress={() => handleLearnMorePress(item)}>
+          <Text style={styles.learnMoreText}>Learn More</Text>
+        </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -893,6 +904,8 @@ const styles = StyleSheet.create({
   exploreItem: {
     marginBottom: 20,
     borderRadius: 10,
+    borderBottomRightRadius: 40,
+    borderBottomLeftRadius: 40,
     overflow: 'hidden',
   },
   exploreItemImageContainer: {
@@ -966,6 +979,17 @@ const styles = StyleSheet.create({
     height: 200,
     resizeMode: 'cover',
     borderRadius: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#ccc',
+  },
+  learnMoreButton: {
+    alignItems: 'center',
+  },
+  learnMoreText: {
+    color: '#2f95dc',
+    fontSize: 16,
   },
 });
 
