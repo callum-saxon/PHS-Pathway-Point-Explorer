@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Image, StyleSheet, ScrollView, TouchableOpacity, Modal, View } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Image, StyleSheet, ScrollView, TouchableOpacity, Modal, View, Animated } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
@@ -8,13 +8,21 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { achievements } from '@/components/Achievements';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useColorScheme } from 'react-native';
+import { useNavigation } from 'expo-router';
+import { landmarks } from '@/components/Landmarks';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import WelcomeScreen from '../screens/welcomeScreen'; // Adjust the import path as needed
 
 export default function HomeScreen() {
   const [isModalVisible, setModalVisible] = useState(false);
-  const [tooltipData, setTooltipData] = useState({ title: '', description: '' });
+  const [tooltipData, setTooltipData] = useState({ title: '', description: '', icon: '', iconType: '' });
   const [showAllAchievements, setShowAllAchievements] = useState(false);
   const [showAllDiscover, setShowAllDiscover] = useState(false);
+  const [firstOpen, setFirstOpen] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(true);
 
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const navigation = useNavigation();
   const colorScheme = useColorScheme();
   const backgroundColor = useThemeColor({}, 'background');
   const modalBackgroundColor = useThemeColor({}, 'modalBackground');
@@ -22,27 +30,24 @@ export default function HomeScreen() {
   const iconColor = colorScheme === 'light' ? '#000' : '#fff';
   const viewAllColor = colorScheme === 'light' ? '#555555' : '#d3d3d3';
   const achievementCardColor = colorScheme === 'light' ? '#e6e6e6' : '#101010';
-  
-  const handlePress = (item: string) => {
-    console.log(`Pressed: ${item}`);
-  };
 
-  const handlePressAchievement = (title: string, description: string) => {
-    setTooltipData({ title, description });
+  const handlePressAchievement = (title, description, icon, iconType) => {
+    setTooltipData({ title, description, icon, iconType });
     setShowAllAchievements(false);
     setShowAllDiscover(false);
     setModalVisible(true);
+    setFirstOpen(true);
   };
 
   const handleViewAllAchievements = () => {
-    setTooltipData({ title: 'Achievements', description: '' });
+    setTooltipData({ title: 'Achievements', description: '', icon: '', iconType: '' });
     setShowAllAchievements(true);
     setShowAllDiscover(false);
     setModalVisible(true);
   };
 
   const handleViewAllDiscover = () => {
-    setTooltipData({ title: 'Discover', description: '' });
+    setTooltipData({ title: 'Discover', description: '', icon: '', iconType: '' });
     setShowAllDiscover(true);
     setShowAllAchievements(false);
     setModalVisible(true);
@@ -50,9 +55,47 @@ export default function HomeScreen() {
 
   const closeModal = () => {
     setModalVisible(false);
+    setFirstOpen(false);
   };
 
-  const renderIcon = (icon: string, type: string) => {
+  const startBounceAnimation = () => {
+    Animated.sequence([
+      Animated.timing(bounceAnim, {
+        toValue: 1.5,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bounceAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  useEffect(() => {
+    if (isModalVisible && firstOpen) {
+      startBounceAnimation();
+    }
+  }, [isModalVisible, firstOpen]);
+
+  useEffect(() => {
+    const checkWelcomeScreen = async () => {
+      const hasSeenWelcome = await AsyncStorage.getItem('hasSeenWelcome');
+      if (hasSeenWelcome) {
+        setShowWelcome(false);
+      }
+    };
+
+    checkWelcomeScreen();
+  }, []);
+
+  const handleWelcomeComplete = async () => {
+    await AsyncStorage.setItem('hasSeenWelcome', 'true');
+    setShowWelcome(false);
+  };
+
+  const renderIcon = (icon, type) => {
     switch (type) {
       case 'FontAwesome5':
         return <FontAwesome5 name={icon} size={44} color={iconColor} style={styles.icon} />;
@@ -62,6 +105,17 @@ export default function HomeScreen() {
         return null;
     }
   };
+
+  const handlePress = (landmarkName) => {
+    const selectedLandmark = landmarks.find((landmark) => landmark.title === landmarkName);
+    if (selectedLandmark) {
+      navigation.navigate('landmarkDetails', { landmark: selectedLandmark });
+    }
+  };
+
+  if (showWelcome) {
+    return <WelcomeScreen onComplete={handleWelcomeComplete} />;
+  }
 
   return (
     <ScrollView style={[styles.container, { backgroundColor }]}>
@@ -74,7 +128,7 @@ export default function HomeScreen() {
           </View>
         </View>
       </View>
-      
+
       <ThemedView style={styles.achievementsContainer}>
         <View style={styles.sectionHeader}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>achievements</ThemedText>
@@ -88,7 +142,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 key={achievement.id}
                 style={styles.achievement}
-                onPress={() => handlePressAchievement(achievement.title, achievement.description)}
+                onPress={() => handlePressAchievement(achievement.title, achievement.description, achievement.icon, achievement.iconType)}
               >
                 {renderIcon(achievement.icon, achievement.iconType)}
                 <ThemedText type="default" style={styles.achievementText}>{achievement.title}</ThemedText>
@@ -105,8 +159,8 @@ export default function HomeScreen() {
             <ThemedText type="link" style={[styles.viewAll, { color: viewAllColor }]}>view all</ThemedText>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.discoveryItem} onPress={() => handlePress('Visit the Greens Windmill')}>
-          <Image source={require('@/assets/images/greens-windmill.png')} style={styles.image}/>
+        <TouchableOpacity style={styles.discoveryItem} onPress={() => handlePress('Visit the Green\'s Windmill')}>
+          <Image source={require('@/assets/images/greens-windmill.jpg')} style={styles.image}/>
           <View style={styles.textOverlay}>
             <ThemedText type="default" style={styles.discoveryTitle}>Visit the Green's Windmill</ThemedText>
             <TouchableOpacity style={styles.getStartedButton}>
@@ -144,7 +198,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     key={achievement.id}
                     style={styles.achievementGridItem}
-                    onPress={() => handlePressAchievement(achievement.title, achievement.description)}
+                    onPress={() => handlePressAchievement(achievement.title, achievement.description, achievement.icon, achievement.iconType)}
                   >
                     {renderIcon(achievement.icon, achievement.iconType)}
                     <ThemedText type="default" style={styles.achievementText}>{achievement.title}</ThemedText>
@@ -157,8 +211,8 @@ export default function HomeScreen() {
                   <View style={styles.sectionHeader}>
                     <ThemedText type="subtitle" style={styles.sectionTitle}>discover all</ThemedText>
                   </View>
-                  <TouchableOpacity style={styles.discoveryItem} onPress={() => handlePress('Visit the Greens Windmill')}>
-                    <Image source={require('@/assets/images/greens-windmill.png')} style={styles.image}/>
+                  <TouchableOpacity style={styles.discoveryItem} onPress={() => handlePress('Visit the Green\'s Windmill')}>
+                    <Image source={require('@/assets/images/greens-windmill.jpg')} style={styles.image}/>
                     <View style={styles.textOverlay}>
                       <ThemedText type="default" style={styles.discoveryTitle}>Visit the Green's Windmill</ThemedText>
                       <TouchableOpacity style={styles.getStartedButton}>
@@ -208,6 +262,11 @@ export default function HomeScreen() {
             ) : (
               <>
                 <ThemedText type="title" style={styles.modalTitle}>{tooltipData.title}</ThemedText>
+                {renderIcon(tooltipData.icon, tooltipData.iconType) && (
+                  <Animated.View style={[styles.modalIcon, { transform: [{ scale: bounceAnim }] }]}>
+                    {renderIcon(tooltipData.icon, tooltipData.iconType)}
+                  </Animated.View>
+                )}
                 <ThemedText type="default" style={styles.modalDescription}>{tooltipData.description}</ThemedText>
               </>
             )}
@@ -369,6 +428,10 @@ const styles = StyleSheet.create({
   modalDescription: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  modalIcon: {
+    alignSelf: 'center',
+    marginBottom: 10,
   },
   grid: {
     flexDirection: 'row',

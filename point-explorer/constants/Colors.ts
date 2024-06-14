@@ -4,7 +4,7 @@ const tintColorDark = '#fff';
 export const Colors = {
   light: {
     text: '#000',
-    background: '#fff',
+    background: '#faf9f6',
     modalBackground: 'rgba(0, 0, 0, 0.5)',
     modalContent: '#fff',
     tooltipBackground: '#f9f9f9',

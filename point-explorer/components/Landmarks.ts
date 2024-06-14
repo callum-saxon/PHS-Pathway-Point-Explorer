@@ -48,7 +48,7 @@ export const landmarks: Landmark[] = [
       latitude: 52.95206805461328,
       longitude: -1.129385057166798,
     },
-    image: require('@/assets/images/greens-windmill.png'),
+    image: require('@/assets/images/greens-windmill.jpg'),
   },
   {
     id: '5',
@@ -58,7 +58,7 @@ export const landmarks: Landmark[] = [
       latitude: 52.952021424623865,
       longitude: -1.1260245544918952,
     },
-    image: require('@/assets/images/sultania-mosque.png'),
+    image: require('@/assets/images/sultania-mosque.jpg'),
   },
   {
     id: '6',
@@ -108,7 +108,7 @@ export const landmarks: Landmark[] = [
       latitude: 52.95031467368414,
       longitude: -1.129093558640146,
     },
-    image: require('@/assets/images/former-bendigo.png'),
+    image: require('@/assets/images/former-bendigo.jpg'),
   },
   {
     id: '11',

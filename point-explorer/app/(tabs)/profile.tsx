@@ -1,102 +1,140 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { StyleSheet, Image, Platform } from 'react-native';
-
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
+import React from 'react';
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useColorScheme } from 'react-native';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { useAuth } from '../context/AuthContext';
+import { useNavigation } from '@react-navigation/native';
 
 export default function ProfileScreen() {
+  const colorScheme = useColorScheme();
+  const backgroundColor = useThemeColor({}, 'background');
+  const iconColor = '#ffffff';
+  const textColor = useThemeColor({}, 'text');
+  const { logout } = useAuth();
+  const navigation = useNavigation();
+
+  const handleLogout = () => {
+    logout();
+    navigation.navigate('screens/auth/loginScreen');
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={<Ionicons size={310} name="code-slash" style={styles.headerImage} />}>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
+    <ThemedView style={[styles.container, { backgroundColor }]}>
+      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        <View style={styles.header}>
+          <MaterialIcons name="face" size={100} color={iconColor} style={styles.profileIcon} />
+          <ThemedText type="default" style={[styles.headerText, { color: textColor }]}>
+            Mr. John Doe
           </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText> library
-          to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <ThemedText type="default" style={[styles.logoutButtonText, { color: textColor }]}>
+              Logout
             </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+            <MaterialIcons name="keyboard-arrow-right" size={24} color={iconColor} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.optionsContainer}>
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('screens/profile/ProfileView')}>
+            <FontAwesome5 name="user" size={24} color={iconColor} style={styles.optionIcon} />
+            <ThemedText type="default" style={[styles.optionText, { color: textColor }]}>
+              View Profile
+            </ThemedText>
+            <Ionicons name="chevron-forward" size={24} color={iconColor} style={styles.optionChevron} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('screens/profile/FavoriteLocations')}>
+            <FontAwesome5 name="star" size={24} color={iconColor} style={styles.optionIcon} />
+            <ThemedText type="default" style={[styles.optionText, { color: textColor }]}>
+              Favorite Locations
+            </ThemedText>
+            <Ionicons name="chevron-forward" size={24} color={iconColor} style={styles.optionChevron} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.option} onPress={() => navigation.navigate('screens/profile/RecentlyVisited')}>
+            <FontAwesome5 name="clock" size={24} color={iconColor} style={styles.optionIcon} />
+            <ThemedText type="default" style={[styles.optionText, { color: textColor }]}>
+              Recently Visited
+            </ThemedText>
+            <Ionicons name="chevron-forward" size={24} color={iconColor} style={styles.optionChevron} />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={[styles.helpButton, { backgroundColor: '#333' }]}>
+          <FontAwesome5 name="headset" size={24} color={iconColor} />
+          <ThemedText type="default" style={[styles.helpButtonText, { color: iconColor }]}>
+            How can we help you?
+          </ThemedText>
+        </TouchableOpacity>
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
   },
-  titleContainer: {
+  scrollViewContent: {
+    flexGrow: 1,
+    padding: 16,
+    top: 50,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  profileIcon: {
+    marginBottom: 10,
+  },
+  headerText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  optionsContainer: {
+    marginTop: 32,
+    marginBottom: 32,
+  },
+  option: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  optionIcon: {
+    marginRight: 16,
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 16,
+  },
+  optionChevron: {
+    marginLeft: 'auto',
+  },
+  helpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 8,
+  },
+  helpButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
+  },
+  logoutButton: {
+    position: 'absolute',
+    top: -40,
+    left: 240,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  logoutButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
   },
 });

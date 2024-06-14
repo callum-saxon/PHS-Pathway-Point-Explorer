@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Image, View, TextInput, FlatList, TouchableOpacity, Text, Keyboard, Dimensions, TouchableWithoutFeedback } from 'react-native';
-import MapView, { Marker, Polyline, Region } from 'react-native-maps';
+import { StyleSheet, Image, View, TextInput, FlatList, TouchableOpacity, Text, Keyboard, Dimensions, TouchableWithoutFeedback, Share } from 'react-native';
+import MapView, { Marker, Polyline, Region, Camera } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { landmarks, Landmark } from '@/components/Landmarks';
 import { ThemedView } from '@/components/ThemedView';
@@ -12,9 +12,10 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import polyline from 'polyline';
 import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
+import Animated, { Easing, useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
 import { useColorScheme } from 'react-native';
 import { useNavigation } from 'expo-router';
+import { CheckBox } from 'react-native-check-box';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -30,12 +31,22 @@ const MapScreen: React.FC = () => {
   const [exploreSheetOpen, setExploreSheetOpen] = useState(false);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState('All');
+  const [navigationMode, setNavigationMode] = useState(false);
+  const [travelTime, setTravelTime] = useState('');
+  const [directions, setDirections] = useState([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [distanceToDestination, setDistanceToDestination] = useState('');
+  const [remainingTime, setRemainingTime] = useState('');
+  const [isSecondCardVisible, setIsSecondCardVisible] = useState(false);
+  const [checkedLandmarks, setCheckedLandmarks] = useState<Set<string>>(new Set());
+
   const searchInputRef = useRef<TextInput>(null);
   const mapRef = useRef<MapView>(null);
 
   const colorScheme = useColorScheme();
   const backgroundColor = useThemeColor({}, 'background');
-  const searchBarBackgroundColor = useThemeColor({ light: 'rgba(255, 255, 255, 0.85)', dark: '#121212' }, 'background');
+  const searchBarBackgroundColor = useThemeColor({ light: 'rgb(255, 255, 255)', dark: '#121212' }, 'background');
   const searchTextColor = useThemeColor({ light: '#000', dark: '#fff' }, 'text');
   const landmarkTextColor = useThemeColor({ light: '#000', dark: '#fff' }, 'text');
   const cardBackgroundColor = useThemeColor({}, 'background');
@@ -43,6 +54,9 @@ const MapScreen: React.FC = () => {
   const bottomSheetHandleColor = colorScheme === 'light' ? '#ccc' : '#444';
   const arrowIconColor = useThemeColor({ light: 'black', dark: 'white' }, 'text');
   const directionsButtonColor = '#2f95dc';
+  const [directionButtonPressed, setDirectionButtonPressed] = useState(false);
+  const fadeAnim = useSharedValue(1);
+
   const landmarkCardColor = colorScheme === 'light' ? '#e6e6e6' : '#101010';
 
   const bottomSheetInitialHeight = 300;
@@ -123,6 +137,105 @@ const MapScreen: React.FC = () => {
     })();
   }, []);
 
+  useEffect(() => {
+    let locationSubscription: Location.LocationSubscription | null = null;
+  
+    if (navigationMode) {
+      (async () => {
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 1000,
+            distanceInterval: 1,
+          },
+          async (newLocation) => {
+            const { latitude, longitude } = newLocation.coords;
+            setLocation((prevLocation) => ({
+              ...prevLocation,
+              latitude,
+              longitude,
+            }));
+  
+            const camera: Camera = {
+              center: {
+                latitude,
+                longitude,
+              },
+              pitch: 45,
+              heading: newLocation.coords.heading || 0,
+              altitude: 1000,
+              zoom: 18,
+            };
+  
+            if (mapRef.current) {
+              mapRef.current.animateCamera(camera, { duration: 1000 });
+            }
+  
+            if (currentStepIndex < directions.length - 1) {
+              const nextStep = directions[currentStepIndex + 1];
+              const distanceToNextStep = calculateDistance(
+                latitude,
+                longitude,
+                nextStep.end_location.lat,
+                nextStep.end_location.lng
+              );
+  
+              if (distanceToNextStep < 10) {
+                setCurrentStepIndex(currentStepIndex + 1);
+              }
+            }
+  
+            const destination = directions[directions.length - 1]?.end_location;
+            if (destination) {
+              const distanceToDest = calculateDistance(
+                latitude,
+                longitude,
+                destination.lat,
+                destination.lng
+              );
+              setDistanceToDestination((distanceToDest / 1000).toFixed(2) + ' km'); // Convert to kilometers and format
+  
+              const apiKey = 'AIzaSyAPp2-o3BPhMNJNPRiXD_mrDoZiB0KFYAc';
+              const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${destination.lat},${destination.lng}&mode=walking&key=${apiKey}`;
+              const response = await fetch(url);
+              const data = await response.json();
+              if (data.routes.length) {
+                const newTravelTime = data.routes[0].legs[0].duration.text;
+                setRemainingTime(newTravelTime);
+              }
+            }
+          }
+        );
+      })();
+    } else if (locationSubscription) {
+      locationSubscription.remove();
+    }
+  
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
+  }, [navigationMode, directions, currentStepIndex]);
+  
+  
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    const d = R * c;
+    return d;
+  };
+
   const handleSelectLandmark = (landmark: Landmark) => {
     const newLocation = {
       latitude: landmark.coordinate.latitude,
@@ -134,6 +247,8 @@ const MapScreen: React.FC = () => {
     setSearch(landmark.title);
     setHighlightedLandmark(landmark);
     setSearchBarActive(false);
+    setExploreSheetOpen(false);
+    translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 }); // Animate explore sheet close
     Keyboard.dismiss();
     if (mapRef.current) {
       mapRef.current.animateToRegion(newLocation, 1000);
@@ -187,9 +302,9 @@ const MapScreen: React.FC = () => {
 
   const fetchDirections = async (origin: { latitude: any; longitude: any; }, destination: { latitude: any; longitude: any; }) => {
     try {
-      const apiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=${apiKey}`;
-
+      const apiKey = 'AIzaSyAPp2-o3BPhMNJNPRiXD_mrDoZiB0KFYAc';
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=walking&key=${apiKey}`;
+  
       const response = await fetch(url);
       const data = await response.json();
       if (data.routes.length) {
@@ -199,6 +314,18 @@ const MapScreen: React.FC = () => {
           longitude: point[1],
         }));
         setRouteCoordinates(routeCoords);
+        setTravelTime(data.routes[0].legs[0].duration.text);
+        
+        const steps = data.routes[0].legs[0].steps.map((step, index) => ({
+          key: index.toString(),
+          instructions: step.html_instructions.replace(/<[^>]+>/g, ''),
+          icon: step.maneuver,
+          distance: step.distance.text,
+          end_location: step.end_location,
+        }));
+        setDirections(steps);
+        setCurrentStepIndex(0);
+
       } else {
         alert('No routes found');
       }
@@ -208,21 +335,53 @@ const MapScreen: React.FC = () => {
     }
   };
 
-  const handleDirectionsPress = (landmark: Landmark) => {
-    if (location) {
+  const handleDirectionsPress = async (landmark: Landmark) => {
+    try {
+      const userLocation = await Location.getCurrentPositionAsync({});
       const origin = {
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: userLocation.coords.latitude,
+        longitude: userLocation.coords.longitude,
       };
       const destination = {
         latitude: landmark.coordinate.latitude,
         longitude: landmark.coordinate.longitude,
       };
-      fetchDirections(origin, destination);
+      await fetchDirections(origin, destination);
       setExploreSheetOpen(false);
       translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
+  
+      fadeAnim.value = withTiming(0, {
+        duration: 300,
+        easing: Easing.linear,
+      }, () => {
+        runOnJS(setDirectionButtonPressed)(true);
+  
+        fadeAnim.value = withTiming(1, {
+          duration: 300,
+          easing: Easing.linear,
+        });
+      });
+    } catch (error) {
+      console.error('Error fetching user location:', error);
     }
   };
+
+  const handleExitNavPress = () => {
+    setNavigationMode(false);
+    setHighlightedLandmark(null);
+    setRouteCoordinates([]);
+    setDirections([]);
+  };
+  
+  const handleStartNavPress = () => {
+    setNavigationMode(true);
+  };
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: fadeAnim.value,
+    };
+  });
 
   const handleLandmarkCardPress = () => {
     translateY.value = withSpring(bottomSheetInitialHeight, { damping: 15, stiffness: 100 });
@@ -231,6 +390,9 @@ const MapScreen: React.FC = () => {
 
   const handleCloseLandmarkCard = () => {
     setHighlightedLandmark(null);
+
+    translateY.value = withSpring(bottomSheetFullHeight, { damping: 15, stiffness: 100 });
+    setBottomSheetOpen(false);
   };
 
   const handleExplorePress = () => {
@@ -256,7 +418,36 @@ const MapScreen: React.FC = () => {
   };
 
   const handleLearnMorePress = (landmark: Landmark) => {
-    navigation.navigate('landmarkDetails', { landmark });
+    navigation.navigate('screens/landmarkdetailsScreen', { landmark });
+  };
+
+  const handleSharePress = async () => {
+    try {
+      const result = await Share.share({
+        message: `Check out this landmark: ${highlightedLandmark?.title} - ${highlightedLandmark?.description}`,
+      });
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+        } else {
+        }
+      } else if (result.action === Share.dismissedAction) {
+      }
+    } catch (error) {
+      alert('Error sharing the landmark');
+      console.error(error);
+    }
+  };
+
+  const handleCheckboxPress = (landmarkId: string) => {
+    setCheckedLandmarks(prev => {
+      const newCheckedLandmarks = new Set(prev);
+      if (newCheckedLandmarks.has(landmarkId)) {
+        newCheckedLandmarks.delete(landmarkId);
+      } else {
+        newCheckedLandmarks.add(landmarkId);
+      }
+      return newCheckedLandmarks;
+    });
   };
 
   const filteredLandmarks = search
@@ -265,28 +456,169 @@ const MapScreen: React.FC = () => {
       )
     : landmarks;
 
+  const filteredExploreLandmarks = filter === 'Favorites'
+    ? landmarks.filter(landmark => favorites.has(landmark.id))
+    : landmarks;
+
   const lightMapStyle = [
     {
-      "featureType": "all",
-      "elementType": "labels",
+      "elementType": "geometry",
       "stylers": [
-        { "visibility": "off" }
+        {
+          "color": "#f5f5f5"
+        }
       ]
     },
     {
-      "featureType": "transit",
-      "elementType": "geometry",
+      "elementType": "labels.icon",
       "stylers": [
-        { "visibility": "off" }
+        {
+          "visibility": "off"
+        }
+      ]
+    },
+    {
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#616161"
+        }
+      ]
+    },
+    {
+      "elementType": "labels.text.stroke",
+      "stylers": [
+        {
+          "color": "#f5f5f5"
+        }
+      ]
+    },
+    {
+      "featureType": "administrative.land_parcel",
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#bdbdbd"
+        }
       ]
     },
     {
       "featureType": "poi",
       "elementType": "geometry",
       "stylers": [
-        { "visibility": "off" }
+        {
+          "color": "#eeeeee"
+        }
       ]
     },
+    {
+      "featureType": "poi",
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#757575"
+        }
+      ]
+    },
+    {
+      "featureType": "poi.park",
+      "elementType": "geometry",
+      "stylers": [
+        {
+          "color": "#e5e5e5"
+        }
+      ]
+    },
+    {
+      "featureType": "poi.park",
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#9e9e9e"
+        }
+      ]
+    },
+    {
+      "featureType": "road",
+      "elementType": "geometry",
+      "stylers": [
+        {
+          "color": "#ffffff"
+        }
+      ]
+    },
+    {
+      "featureType": "road.arterial",
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#757575"
+        }
+      ]
+    },
+    {
+      "featureType": "road.highway",
+      "elementType": "geometry",
+      "stylers": [
+        {
+          "color": "#dadada"
+        }
+      ]
+    },
+    {
+      "featureType": "road.highway",
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#616161"
+        }
+      ]
+    },
+    {
+      "featureType": "road.local",
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#9e9e9e"
+        }
+      ]
+    },
+    {
+      "featureType": "transit.line",
+      "elementType": "geometry",
+      "stylers": [
+        {
+          "color": "#e5e5e5"
+        }
+      ]
+    },
+    {
+      "featureType": "transit.station",
+      "elementType": "geometry",
+      "stylers": [
+        {
+          "color": "#eeeeee"
+        }
+      ]
+    },
+    {
+      "featureType": "water",
+      "elementType": "geometry",
+      "stylers": [
+        {
+          "color": "#c9c9c9"
+        }
+      ]
+    },
+    {
+      "featureType": "water",
+      "elementType": "labels.text.fill",
+      "stylers": [
+        {
+          "color": "#9e9e9e"
+        }
+      ]
+    }
   ];
 
   const darkMapStyle = [
@@ -512,6 +844,37 @@ const MapScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const renderDirectionStep = ({ item }) => {
+    let iconName = 'location-on';
+    switch (item.icon) {
+      case 'turn-left':
+        iconName = 'turn-left';
+        break;
+      case 'turn-right':
+        iconName = 'turn-right';
+        break;
+      case 'straight':
+        iconName = 'arrow-upward';
+        break;
+      case 'slight-left':
+        iconName = 'turn-slight-left';
+        break;
+      case 'slight-right':
+        iconName = 'turn-slight-right';
+        break;
+    }
+    return (
+      <View style={styles.directionStepContainer}>
+        <MaterialIcons name={iconName} size={24} color="#2f95dc" />
+        <Text style={[styles.directionStepText, { color: landmarkTextColor }]}>{item.instructions} ({item.distance})</Text>
+      </View>
+    );
+  };
+
+  const handleLandmarkButtonPress = () => {
+    setIsSecondCardVisible(!isSecondCardVisible);
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <ThemedView style={[styles.container, { backgroundColor }]}>
@@ -521,13 +884,14 @@ const MapScreen: React.FC = () => {
             style={styles.map}
             initialRegion={initialRegion}
             showsUserLocation={true}
-            showsMyLocationButton={true}
+            showsMyLocationButton={false}
+            showsCompass={false}
             onPress={handleMapPress}
             onRegionChangeComplete={(region) => {
               setLocation(region);
               setZoomLevel(calculateZoomLevel(region.latitudeDelta));
             }}
-            customMapStyle={backgroundColor === '#fff' ? lightMapStyle : darkMapStyle}
+            customMapStyle={colorScheme === 'light' ? lightMapStyle : darkMapStyle}
             rotateEnabled={true}
           >
             {landmarks.map((landmark: Landmark) => (
@@ -554,12 +918,12 @@ const MapScreen: React.FC = () => {
               <Polyline
                 coordinates={routeCoordinates}
                 strokeWidth={4}
-                strokeColor="blue"
+                strokeColor="#2f95dc"
               />
             )}
           </MapView>
         )}
-        {!searchBarActive && highlightedLandmark && (
+        {!searchBarActive && !navigationMode && highlightedLandmark && (
           <TouchableOpacity 
             style={[styles.landmarkInfoCard, { backgroundColor: cardBackgroundColor }]} 
             onPress={handleLandmarkCardPress}
@@ -568,14 +932,71 @@ const MapScreen: React.FC = () => {
             <View style={styles.landmarkTextContainer}>
               <Text style={[styles.landmarkTitle, { color: landmarkTextColor }]}>{highlightedLandmark.title}</Text>
               <Text style={[styles.landmarkDescription, { color: landmarkTextColor }]}>{truncateText(highlightedLandmark.description, 50)}</Text>
+              <TouchableOpacity onPress={handleLandmarkCardPress} style={{ alignItems: 'center', marginTop: 10 }}>
+                <Text style={[styles.learnMoreText, { color: 'lightgrey' }]}>See more ...</Text>
+              </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.closeButton} onPress={handleCloseLandmarkCard}>
               <MaterialIcons name="close" size={24} color={directionsButtonColor} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.directionsButton, { marginTop: 30 }]} onPress={() => handleDirectionsPress(highlightedLandmark)}>
-              <FontAwesome6 name="arrow-alt-circle-right" size={28} color={directionsButtonColor} />
-            </TouchableOpacity>
+            <Animated.View style={[animatedStyle]}>
+              {!directionButtonPressed ? (
+                <TouchableOpacity style={[styles.directionsButton, { marginTop: 30 }]} onPress={() => handleDirectionsPress(highlightedLandmark)}>
+                  <FontAwesome6 name="arrow-alt-circle-right" size={28} color={directionsButtonColor} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={[styles.directionsButton, {backgroundColor: 'white'}]} onPress={handleStartNavPress}>
+                  <FontAwesome6 name="location-arrow" size={24} color="black" />
+                </TouchableOpacity>
+              )}
+            </Animated.View>
           </TouchableOpacity>
+        )}
+        {navigationMode && (
+          <>
+            <Animated.View style={[styles.navigationCard, { backgroundColor: cardBackgroundColor }]}>
+              <TouchableOpacity style={styles.exitButton} onPress={handleExitNavPress}>
+                <MaterialCommunityIcons name="close" size={24} color={"white"} />
+              </TouchableOpacity>
+              <View style={styles.navigationInfoContainer}>
+                <Text style={[styles.navigationText, { color: landmarkTextColor }]}>
+                  {remainingTime}
+                </Text>
+                <Text style={[styles.navigationText, { color: landmarkTextColor }]}>
+                  {distanceToDestination}
+                </Text>
+              </View>
+              <TouchableOpacity style={[styles.landmarkButton, { backgroundColor: directionsButtonColor,}]} onPress={handleLandmarkButtonPress}>
+                <MaterialIcons name="add-location-alt" size={24} color="white" />
+              </TouchableOpacity>
+            </Animated.View>
+            {isSecondCardVisible && (
+              <Animated.View style={[styles.secondCard, { backgroundColor: cardBackgroundColor }]}>
+                <FlatList
+                  data={landmarks}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity style={styles.landmarkItem} onPress={() => handleSelectLandmark(item)}>
+                      <Image source={item.image} style={styles.landmarkItemImage} />
+                      <Text style={[styles.landmarkItemText, { color: landmarkTextColor }]}>{item.title}</Text>
+                      <CheckBox
+                        checked={checkedLandmarks.has(item.id)}
+                        onPress={() => handleCheckboxPress(item.id)}
+                        containerStyle={styles.checkbox}
+                      />
+                    </TouchableOpacity>
+                  )}
+                />
+              </Animated.View>
+            )}
+            <View style={[styles.directionsContainer, {backgroundColor: landmarkCardColor} ]}>
+              <FlatList
+                data={[directions[currentStepIndex]]}
+                renderItem={renderDirectionStep}
+                keyExtractor={(item) => item.key}
+              />
+            </View>
+          </>
         )}
         <Animated.View style={[styles.bottomSheet, bottomSheetAnimatedStyle, { backgroundColor: bottomSheetBackgroundColor, zIndex: 5 }]}>
           <PanGestureHandler onGestureEvent={handleSheetGesture} onHandlerStateChange={handleSheetClose}>
@@ -589,11 +1010,19 @@ const MapScreen: React.FC = () => {
                 <Image source={highlightedLandmark.image} style={styles.bottomSheetLandmarkImage} />
                 <Text style={[styles.landmarkTitle, { color: landmarkTextColor }]}>{highlightedLandmark.title}</Text>
                 <Text style={[styles.landmarkDescription, { color: landmarkTextColor }]}>{highlightedLandmark.description}</Text>
+                <TouchableOpacity onPress={() => handleLearnMorePress(highlightedLandmark)}>
+                  <Text style={[styles.learnMoreText]}>Learn more ...</Text>
+                </TouchableOpacity>
+                <View style={styles.bottomSheetIcons}>
+                  <TouchableOpacity onPress={handleSharePress} style={styles.shareButton}>
+                    <FontAwesome6 name="share" size={24} color={directionsButtonColor} />
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
         </Animated.View>
-        {!searchBarActive && (
+        {!searchBarActive && !navigationMode && (
           <Animated.View style={[styles.exploreSheet, exploreSheetAnimatedStyle, { backgroundColor: bottomSheetBackgroundColor, zIndex: 4, height: exploreSheetFullHeight }]}>
             <PanGestureHandler onGestureEvent={handleExploreSheetGesture} onHandlerStateChange={handleExploreSheetClose}>
               <View style={styles.bottomSheetHandleWrapper}>
@@ -603,22 +1032,44 @@ const MapScreen: React.FC = () => {
             <View style={styles.exploreSheetContent}>
               <Text style={[styles.exploreHeaderText, { color: landmarkTextColor }]}>Explore</Text>
               <View style={styles.exploreFilterContainer}>
-                <TouchableOpacity style={styles.exploreFilterButton}>
+                <TouchableOpacity
+                  style={[
+                    styles.exploreFilterButton,
+                    filter === 'Nearby' && styles.activeFilterButton,
+                  ]}
+                  onPress={() => setFilter('Nearby')}
+                >
                   <Text style={styles.exploreFilterText}>Nearby</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.exploreFilterButton}>
+                <TouchableOpacity
+                  style={[
+                    styles.exploreFilterButton,
+                    filter === 'Popular' && styles.activeFilterButton,
+                  ]}
+                  onPress={() => setFilter('Popular')}
+                >
                   <Text style={styles.exploreFilterText}>Popular</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.exploreFilterButton}>
+                <TouchableOpacity
+                  style={[
+                    styles.exploreFilterButton,
+                    filter === 'Favorites' && styles.activeFilterButton,
+                  ]}
+                  onPress={() => setFilter('Favorites')}
+                >
                   <Text style={styles.exploreFilterText}>Favorites</Text>
                 </TouchableOpacity>
               </View>
-              <FlatList
-                data={landmarks}
-                renderItem={renderExploreItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.exploreListContentContainer}
-              />
+              {filter === 'Favorites' && filteredExploreLandmarks.length === 0 ? (
+                <Text style={styles.noFavoritesText}>You have no favorites</Text>
+              ) : (
+                <FlatList
+                  data={filteredExploreLandmarks}
+                  renderItem={renderExploreItem}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={styles.exploreListContentContainer}
+                />
+              )}
             </View>
           </Animated.View>
         )}
@@ -627,7 +1078,7 @@ const MapScreen: React.FC = () => {
             <View style={styles.searchOverlay} />
           </TouchableWithoutFeedback>
         )}
-        {!bottomSheetOpen && (
+        {!bottomSheetOpen && !navigationMode && (
           <View style={[styles.searchContainer, { backgroundColor: searchBarBackgroundColor }, (searchBarActive || exploreSheetOpen) ? styles.searchContainerActive : styles.searchContainerInactive]}>
             <TouchableOpacity style={styles.iconButton} onPress={handleSearchIconPress}>
               <FontAwesome5 name="search-location" size={20} color={searchTextColor} />
@@ -743,7 +1194,7 @@ const styles = StyleSheet.create({
     zIndex: 7,
   },
   searchContainerInactive: {
-    bottom: 20,
+    bottom: 30,
   },
   searchContainerActive: {
     top: 40,
@@ -768,7 +1219,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgb(0, 0, 0,)',
     zIndex: 5,
   },
   searchResultsContainer: {
@@ -848,7 +1299,7 @@ const styles = StyleSheet.create({
   },
   directionsButton: {
     padding: 10,
-    marginTop: 30,
+    borderRadius: 360,
   },
   closeButton: {
     padding: 10,
@@ -895,6 +1346,11 @@ const styles = StyleSheet.create({
   bottomSheetContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
+  },
+  bottomSheetIcons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
   },
   exploreSheetContent: {
     flex: 1,
@@ -974,6 +1430,15 @@ const styles = StyleSheet.create({
   exploreFilterText: {
     fontSize: 14,
   },
+  activeFilterButton: {
+    backgroundColor: '#2f95dc',
+  },
+  noFavoritesText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: 'grey',
+    marginTop: 20,
+  },
   bottomSheetLandmarkImage: {
     width: '100%',
     height: 200,
@@ -990,6 +1455,122 @@ const styles = StyleSheet.create({
   learnMoreText: {
     color: '#2f95dc',
     fontSize: 16,
+  },
+  shareButton: {
+    bottom: 30,
+    marginLeft: 10,
+  },
+  navigationCard: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+  },
+  navigationText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  navigationInfoContainer: {
+    alignItems: 'center',
+  },
+  exitButton: {
+    position: 'absolute',
+    left: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  directionsContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
+    zIndex: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  directionStepContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    padding: 10,
+    flexWrap: 'wrap',
+  },
+  directionStepText: {
+    marginLeft: 10,
+    fontSize: 18,
+    flexShrink: 1,
+    flex: 1,
+  },
+  landmarkButton: {
+    position: 'absolute',
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  secondCard: {
+    position: 'absolute',
+    bottom: 100,
+    left: 0,
+    right: 0,
+    height: 200,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  landmarkItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  landmarkItemImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  landmarkItemText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  checkbox: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
 });
 

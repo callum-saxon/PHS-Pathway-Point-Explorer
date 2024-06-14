@@ -1,10 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, RouteProp } from '@react-navigation/native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
-const LandmarkDetails = () => {
-  const route = useRoute();
+type RootStackParamList = {
+  LandmarkDetailsScreen: { landmark: { id: string; title: string; description: string; image: any } };
+};
+
+type LandmarkDetailsScreenRouteProp = RouteProp<RootStackParamList, 'LandmarkDetailsScreen'>;
+
+const LandmarkDetailsScreen = () => {
+  const route = useRoute<LandmarkDetailsScreenRouteProp>();
   const { landmark } = route.params;
 
   const backgroundColor = useThemeColor({}, 'background');
@@ -43,4 +49,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LandmarkDetails;
+export default LandmarkDetailsScreen;
