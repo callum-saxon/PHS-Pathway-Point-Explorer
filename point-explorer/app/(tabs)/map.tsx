@@ -195,7 +195,7 @@ const MapScreen: React.FC = () => {
               );
               setDistanceToDestination((distanceToDest / 1000).toFixed(2) + ' km'); // Convert to kilometers and format
   
-              const apiKey = 'AIzaSyAPp2-o3BPhMNJNPRiXD_mrDoZiB0KFYAc';
+              const apiKey = 'API KEY';
               const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${destination.lat},${destination.lng}&mode=walking&key=${apiKey}`;
               const response = await fetch(url);
               const data = await response.json();
