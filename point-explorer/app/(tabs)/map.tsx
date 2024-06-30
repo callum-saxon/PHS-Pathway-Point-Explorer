@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Image, View, TextInput, FlatList, TouchableOpacity, Text, Keyboard, Dimensions, TouchableWithoutFeedback, Share } from 'react-native';
+import { StyleSheet, Image, View, TextInput, FlatList, TouchableOpacity, Text, Keyboard, Dimensions, TouchableWithoutFeedback, Share, Alert } from 'react-native';
 import MapView, { Marker, Polyline, Region, Camera } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { landmarks, Landmark } from '@/components/Landmarks';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -15,7 +16,6 @@ import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-
 import Animated, { Easing, useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
 import { useColorScheme } from 'react-native';
 import { useNavigation } from 'expo-router';
-import { CheckBox } from 'react-native-check-box';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -31,7 +31,7 @@ const MapScreen: React.FC = () => {
   const [exploreSheetOpen, setExploreSheetOpen] = useState(false);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState('All');
+  const [filter, setFilter] = useState('Nearby');
   const [navigationMode, setNavigationMode] = useState(false);
   const [travelTime, setTravelTime] = useState('');
   const [directions, setDirections] = useState([]);
@@ -39,7 +39,7 @@ const MapScreen: React.FC = () => {
   const [distanceToDestination, setDistanceToDestination] = useState('');
   const [remainingTime, setRemainingTime] = useState('');
   const [isSecondCardVisible, setIsSecondCardVisible] = useState(false);
-  const [checkedLandmarks, setCheckedLandmarks] = useState<Set<string>>(new Set());
+  const [waypoints, setWaypoints] = useState<string[]>([]);
 
   const searchInputRef = useRef<TextInput>(null);
   const mapRef = useRef<MapView>(null);
@@ -47,15 +47,16 @@ const MapScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const backgroundColor = useThemeColor({}, 'background');
   const searchBarBackgroundColor = useThemeColor({ light: 'rgb(255, 255, 255)', dark: '#121212' }, 'background');
-  const searchTextColor = useThemeColor({ light: '#000', dark: '#fff' }, 'text');
-  const landmarkTextColor = useThemeColor({ light: '#000', dark: '#fff' }, 'text');
-  const cardBackgroundColor = useThemeColor({}, 'background');
-  const bottomSheetBackgroundColor = useThemeColor({}, 'background');
+  const TextColor = useThemeColor({ light: '#000', dark: '#fff' }, 'text');
+  const BackgroundColor = useThemeColor({}, 'background');
   const bottomSheetHandleColor = colorScheme === 'light' ? '#ccc' : '#444';
   const arrowIconColor = useThemeColor({ light: 'black', dark: 'white' }, 'text');
   const directionsButtonColor = '#2f95dc';
   const [directionButtonPressed, setDirectionButtonPressed] = useState(false);
   const fadeAnim = useSharedValue(1);
+  const [currentDirectionsLandmarkId, setCurrentDirectionsLandmarkId] = useState<string | null>(null);
+  const [initialNavigationLandmarkId, setInitialNavigationLandmarkId] = useState<string | null>(null);
+  const [isCurrentLandmarkCardExpanded, setIsCurrentLandmarkCardExpanded] = useState(false);
 
   const landmarkCardColor = colorScheme === 'light' ? '#e6e6e6' : '#101010';
 
@@ -156,52 +157,25 @@ const MapScreen: React.FC = () => {
               longitude,
             }));
   
-            const camera: Camera = {
-              center: {
-                latitude,
-                longitude,
-              },
-              pitch: 45,
-              heading: newLocation.coords.heading || 0,
-              altitude: 1000,
-              zoom: 18,
-            };
+            if (currentDirectionsLandmarkId) {
+              const destination = landmarks.find(l => l.id === currentDirectionsLandmarkId)?.coordinate;
+              if (destination) {
+                const distanceToDest = calculateDistance(
+                  latitude,
+                  longitude,
+                  destination.latitude,
+                  destination.longitude
+                );
+                setDistanceToDestination((distanceToDest / 1000).toFixed(2) + ' km');
   
-            if (mapRef.current) {
-              mapRef.current.animateCamera(camera, { duration: 1000 });
-            }
-  
-            if (currentStepIndex < directions.length - 1) {
-              const nextStep = directions[currentStepIndex + 1];
-              const distanceToNextStep = calculateDistance(
-                latitude,
-                longitude,
-                nextStep.end_location.lat,
-                nextStep.end_location.lng
-              );
-  
-              if (distanceToNextStep < 10) {
-                setCurrentStepIndex(currentStepIndex + 1);
-              }
-            }
-  
-            const destination = directions[directions.length - 1]?.end_location;
-            if (destination) {
-              const distanceToDest = calculateDistance(
-                latitude,
-                longitude,
-                destination.lat,
-                destination.lng
-              );
-              setDistanceToDestination((distanceToDest / 1000).toFixed(2) + ' km'); // Convert to kilometers and format
-  
-              const apiKey = 'API KEY';
-              const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${destination.lat},${destination.lng}&mode=walking&key=${apiKey}`;
-              const response = await fetch(url);
-              const data = await response.json();
-              if (data.routes.length) {
-                const newTravelTime = data.routes[0].legs[0].duration.text;
-                setRemainingTime(newTravelTime);
+                const apiKey = 'AIzaSyBwT5euSmaG7X8epNBW9cT8y3DfvhWcnic';
+                const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${destination.latitude},${destination.longitude}&mode=walking&key=${apiKey}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.routes.length) {
+                  const newTravelTime = data.routes[0].legs[0].duration.text;
+                  setRemainingTime(newTravelTime);
+                }
               }
             }
           }
@@ -216,13 +190,11 @@ const MapScreen: React.FC = () => {
         locationSubscription.remove();
       }
     };
-  }, [navigationMode, directions, currentStepIndex]);
-  
-  
+  }, [navigationMode, directions, currentDirectionsLandmarkId]);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI / 180;
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI / 180; // φ, λ in radians
     const φ2 = lat2 * Math.PI / 180;
     const Δφ = (lat2 - lat1) * Math.PI / 180;
     const Δλ = (lon2 - lon1) * Math.PI / 180;
@@ -232,7 +204,7 @@ const MapScreen: React.FC = () => {
               Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    const d = R * c;
+    const d = R * c; // in metres
     return d;
   };
 
@@ -248,7 +220,7 @@ const MapScreen: React.FC = () => {
     setHighlightedLandmark(landmark);
     setSearchBarActive(false);
     setExploreSheetOpen(false);
-    translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 }); // Animate explore sheet close
+    translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
     Keyboard.dismiss();
     if (mapRef.current) {
       mapRef.current.animateToRegion(newLocation, 1000);
@@ -300,10 +272,11 @@ const MapScreen: React.FC = () => {
     }
   };
 
-  const fetchDirections = async (origin: { latitude: any; longitude: any; }, destination: { latitude: any; longitude: any; }) => {
+  const fetchDirections = async (origin, destination, waypoints = []) => {
     try {
-      const apiKey = 'AIzaSyAPp2-o3BPhMNJNPRiXD_mrDoZiB0KFYAc';
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=walking&key=${apiKey}`;
+      const apiKey = 'AIzaSyBwT5euSmaG7X8epNBW9cT8y3DfvhWcnic';
+      const waypointsParam = waypoints.length > 0 ? `&waypoints=${[...new Set(waypoints)].join('|')}` : ''; // Ensure unique waypoints
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=walking&key=${apiKey}${waypointsParam}`;
   
       const response = await fetch(url);
       const data = await response.json();
@@ -315,17 +288,18 @@ const MapScreen: React.FC = () => {
         }));
         setRouteCoordinates(routeCoords);
         setTravelTime(data.routes[0].legs[0].duration.text);
-        
-        const steps = data.routes[0].legs[0].steps.map((step, index) => ({
-          key: index.toString(),
-          instructions: step.html_instructions.replace(/<[^>]+>/g, ''),
-          icon: step.maneuver,
-          distance: step.distance.text,
-          end_location: step.end_location,
-        }));
+  
+        const steps = data.routes[0].legs.flatMap((leg, legIndex) =>
+          leg.steps.map((step, index) => ({
+            key: `${legIndex}-${index}`,
+            instructions: step.html_instructions.replace(/<[^>]+>/g, ''),
+            icon: step.maneuver,
+            distance: step.distance.text,
+            end_location: step.end_location,
+          }))
+        );
         setDirections(steps);
         setCurrentStepIndex(0);
-
       } else {
         alert('No routes found');
       }
@@ -333,44 +307,169 @@ const MapScreen: React.FC = () => {
       alert('Error fetching directions');
       console.error(error);
     }
-  };
+  };  
 
   const handleDirectionsPress = async (landmark: Landmark) => {
-    try {
-      const userLocation = await Location.getCurrentPositionAsync({});
-      const origin = {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
-      };
-      const destination = {
-        latitude: landmark.coordinate.latitude,
-        longitude: landmark.coordinate.longitude,
-      };
-      await fetchDirections(origin, destination);
-      setExploreSheetOpen(false);
-      translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
+    if (currentDirectionsLandmarkId && currentDirectionsLandmarkId !== landmark.id) {
+      Alert.alert(
+        "Directions Active",
+        "Would you like to add this landmark to create a tour or set directions individually?",
+        [
+          {
+            text: "Individually",
+            onPress: async () => {
+              try {
+                const userLocation = await Location.getCurrentPositionAsync({});
+                const origin = {
+                  latitude: userLocation.coords.latitude,
+                  longitude: userLocation.coords.longitude,
+                };
+                const destination = {
+                  latitude: landmark.coordinate.latitude,
+                  longitude: landmark.coordinate.longitude,
+                };
+                await fetchDirections(origin, destination);
+                setExploreSheetOpen(false);
+                translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
   
-      fadeAnim.value = withTiming(0, {
-        duration: 300,
-        easing: Easing.linear,
-      }, () => {
-        runOnJS(setDirectionButtonPressed)(true);
+                fadeAnim.value = withTiming(0, {
+                  duration: 300,
+                  easing: Easing.linear,
+                }, () => {
+                  runOnJS(setDirectionButtonPressed)(true);
+                  runOnJS(setCurrentDirectionsLandmarkId)(landmark.id);
+                  runOnJS(setWaypoints)([]); // Clear waypoints
   
-        fadeAnim.value = withTiming(1, {
+                  fadeAnim.value = withTiming(1, {
+                    duration: 300,
+                    easing: Easing.linear,
+                  });
+                });
+  
+                // Set the initial navigation landmark if it's not already set
+                if (!initialNavigationLandmarkId) {
+                  setInitialNavigationLandmarkId(landmark.id);
+                }
+  
+                // Zoom in on the landmark and open the info card
+                const zoomedRegion = {
+                  latitude: landmark.coordinate.latitude,
+                  longitude: landmark.coordinate.longitude,
+                  latitudeDelta: 0.005,
+                  longitudeDelta: 0.005,
+                };
+                if (mapRef.current) {
+                  mapRef.current.animateToRegion(zoomedRegion, 1000);
+                }
+                setHighlightedLandmark(landmark);
+              } catch (error) {
+                console.error('Error fetching user location:', error);
+              }
+            },
+          },
+          {
+            text: "Add to Tour",
+            onPress: async () => {
+              try {
+                const userLocation = await Location.getCurrentPositionAsync({});
+                const origin = {
+                  latitude: userLocation.coords.latitude,
+                  longitude: userLocation.coords.longitude,
+                };
+                const destination = {
+                  latitude: landmark.coordinate.latitude,
+                  longitude: landmark.coordinate.longitude,
+                };
+                // Include the current landmark with active directions as a waypoint
+                const currentLandmark = landmarks.find(l => l.id === currentDirectionsLandmarkId);
+                const currentLandmarkWaypoint = currentLandmark ? `${currentLandmark.coordinate.latitude},${currentLandmark.coordinate.longitude}` : null;
+                const newWaypoints = currentLandmarkWaypoint ? [...new Set([...waypoints, currentLandmarkWaypoint, `${landmark.coordinate.latitude},${landmark.coordinate.longitude}`])] : [`${landmark.coordinate.latitude},${landmark.coordinate.longitude}`];
+                await fetchDirections(origin, destination, newWaypoints);
+                runOnJS(setWaypoints)(newWaypoints); // Update waypoints
+                runOnJS(setCurrentDirectionsLandmarkId)(landmark.id);
+  
+                // Set the initial navigation landmark if it's not already set
+                if (!initialNavigationLandmarkId) {
+                  setInitialNavigationLandmarkId(landmark.id);
+                }
+  
+                // Zoom in on the landmark and open the info card
+                const zoomedRegion = {
+                  latitude: landmark.coordinate.latitude,
+                  longitude: landmark.coordinate.longitude,
+                  latitudeDelta: 0.005,
+                  longitudeDelta: 0.005,
+                };
+                if (mapRef.current) {
+                  mapRef.current.animateToRegion(zoomedRegion, 1000);
+                }
+                setHighlightedLandmark(landmark);
+              } catch (error) {
+                console.error('Error adding landmark to tour:', error);
+              }
+            },
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ],
+        { cancelable: true }
+      );
+    } else {
+      try {
+        const userLocation = await Location.getCurrentPositionAsync({});
+        const origin = {
+          latitude: userLocation.coords.latitude,
+          longitude: userLocation.coords.longitude,
+        };
+        const destination = {
+          latitude: landmark.coordinate.latitude,
+          longitude: landmark.coordinate.longitude,
+        };
+        await fetchDirections(origin, destination);
+        setExploreSheetOpen(false);
+        translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
+  
+        fadeAnim.value = withTiming(0, {
           duration: 300,
           easing: Easing.linear,
+        }, () => {
+          runOnJS(setDirectionButtonPressed)(true);
+          runOnJS(setCurrentDirectionsLandmarkId)(landmark.id);
+          runOnJS(setWaypoints)([]);
+  
+          fadeAnim.value = withTiming(1, {
+            duration: 300,
+            easing: Easing.linear,
+          });
         });
-      });
-    } catch (error) {
-      console.error('Error fetching user location:', error);
+  
+        // Set the initial navigation landmark if it's not already set
+        if (!initialNavigationLandmarkId) {
+          setInitialNavigationLandmarkId(landmark.id);
+        }
+  
+        // Zoom in on the landmark and open the info card
+        const zoomedRegion = {
+          latitude: landmark.coordinate.latitude,
+          longitude: landmark.coordinate.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        };
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(zoomedRegion, 1000);
+        }
+        setHighlightedLandmark(landmark);
+      } catch (error) {
+        console.error('Error fetching user location:', error);
+      }
     }
   };
+  
 
   const handleExitNavPress = () => {
     setNavigationMode(false);
-    setHighlightedLandmark(null);
-    setRouteCoordinates([]);
-    setDirections([]);
   };
   
   const handleStartNavPress = () => {
@@ -388,12 +487,31 @@ const MapScreen: React.FC = () => {
     setBottomSheetOpen(true);
   };
 
-  const handleCloseLandmarkCard = () => {
-    setHighlightedLandmark(null);
-
-    translateY.value = withSpring(bottomSheetFullHeight, { damping: 15, stiffness: 100 });
-    setBottomSheetOpen(false);
+  const handleCloseLandmarkCard = async () => {
+    try {
+      const userLocation = await Location.getCurrentPositionAsync({});
+      const initialRegion = {
+        latitude: userLocation.coords.latitude,
+        longitude: userLocation.coords.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.0121,
+      };
+      setLocation(initialRegion);
+      setHighlightedLandmark(null);
+      setRouteCoordinates([]);
+      setDirections([]);
+      setCurrentDirectionsLandmarkId(null);
+      setInitialNavigationLandmarkId(null);
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(initialRegion, 1000);
+      }
+      translateY.value = withSpring(bottomSheetFullHeight, { damping: 15, stiffness: 100 });
+      setBottomSheetOpen(false);
+    } catch (error) {
+      console.error('Error resetting map position:', error);
+    }
   };
+  
 
   const handleExplorePress = () => {
     setSearch('');
@@ -428,26 +546,17 @@ const MapScreen: React.FC = () => {
       });
       if (result.action === Share.sharedAction) {
         if (result.activityType) {
+          // shared with activity type of result.activityType
         } else {
+          // shared
         }
       } else if (result.action === Share.dismissedAction) {
+        // dismissed
       }
     } catch (error) {
       alert('Error sharing the landmark');
       console.error(error);
     }
-  };
-
-  const handleCheckboxPress = (landmarkId: string) => {
-    setCheckedLandmarks(prev => {
-      const newCheckedLandmarks = new Set(prev);
-      if (newCheckedLandmarks.has(landmarkId)) {
-        newCheckedLandmarks.delete(landmarkId);
-      } else {
-        newCheckedLandmarks.add(landmarkId);
-      }
-      return newCheckedLandmarks;
-    });
   };
 
   const filteredLandmarks = search
@@ -818,31 +927,51 @@ const MapScreen: React.FC = () => {
     return text.substring(0, length) + '...';
   };
 
-  const renderExploreItem = ({ item }: { item: Landmark }) => (
-    <TouchableOpacity
-      style={[styles.exploreItem, { backgroundColor: landmarkCardColor }]}
-      onPress={() => handleLearnMorePress(item)}
-    >
-      <View style={styles.exploreItemImageContainer}>
-        <Image source={item.image} style={styles.exploreItemImage} />
-        <TouchableOpacity style={styles.favoriteIcon} onPress={() => handleFavoritePress(item.id)}>
-          <MaterialIcons name={favorites.has(item.id) ? 'favorite' : 'favorite-outline'} size={24} color="white" />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.exploreItemTextContainer}>
-        <Text style={[styles.exploreItemTitle, { color: landmarkTextColor }]}>{item.title}</Text>
-        <View style={styles.exploreItemDescriptionContainer}>
-          <Text style={[styles.exploreItemDescription, { color: landmarkTextColor }]} numberOfLines={3} ellipsizeMode='tail'>{item.description}</Text>
-          <TouchableOpacity style={styles.directionsButton} onPress={() => handleDirectionsPress(item)}>
-            <FontAwesome6 name="arrow-alt-circle-right" size={24} color={directionsButtonColor} />
+  const renderExploreItem = ({ item }: { item: Landmark }) => {
+    const isActiveDirectionLandmark = waypoints.includes(`${item.coordinate.latitude},${item.coordinate.longitude}`) || currentDirectionsLandmarkId === item.id;
+    return (
+      <TouchableOpacity
+        style={[styles.exploreItem, { backgroundColor: landmarkCardColor }]}
+        onPress={() => handleLearnMorePress(item)}
+      >
+        <View style={styles.exploreItemImageContainer}>
+          <Image source={item.image} style={styles.exploreItemImage} />
+          <TouchableOpacity style={styles.favoriteIcon} onPress={() => handleFavoritePress(item.id)}>
+            <MaterialIcons name={favorites.has(item.id) ? 'favorite' : 'favorite-outline'} size={24} color="white" />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[styles.learnMoreButton, { justifyContent: 'center', alignItems: 'center' }]} onPress={() => handleLearnMorePress(item)}>
-          <Text style={styles.learnMoreText}>Learn More</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.exploreItemTextContainer}>
+          <View style={styles.exploreItemTitleContainer}>
+            <Text style={[styles.exploreItemTitle, { color: TextColor }]}>{item.title}</Text>
+            <FontAwesome name="star" size={16} color="#FFD700" style={styles.ratingIcon} />
+            <Text style={[styles.exploreItemRating, { color: TextColor }]}>{item.rating?.toFixed(1)}</Text>
+          </View>
+          <View style={styles.exploreItemDescriptionContainer}>
+            <Text style={[styles.exploreItemDescription, { color: TextColor }]} numberOfLines={3} ellipsizeMode='tail'>{item.description}</Text>
+            <TouchableOpacity
+              style={styles.directionsButton}
+              onPress={() => {
+                if (isActiveDirectionLandmark) {
+                  handleStartNavPress();
+                } else {
+                  handleDirectionsPress(item);
+                }
+              }}
+            >
+              <FontAwesome6
+                name={isActiveDirectionLandmark ? "location-arrow" : "arrow-alt-circle-right"}
+                size={24}
+                color={directionsButtonColor}
+              />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={[styles.learnMoreButton, { justifyContent: 'center', alignItems: 'center' }]} onPress={() => handleLearnMorePress(item)}>
+            <Text style={styles.learnMoreText}>Learn More</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };  
 
   const renderDirectionStep = ({ item }) => {
     let iconName = 'location-on';
@@ -866,13 +995,103 @@ const MapScreen: React.FC = () => {
     return (
       <View style={styles.directionStepContainer}>
         <MaterialIcons name={iconName} size={24} color="#2f95dc" />
-        <Text style={[styles.directionStepText, { color: landmarkTextColor }]}>{item.instructions} ({item.distance})</Text>
+        <Text style={[styles.directionStepText, { color: TextColor }]}>{item.instructions} ({item.distance})</Text>
       </View>
     );
   };
 
   const handleLandmarkButtonPress = () => {
     setIsSecondCardVisible(!isSecondCardVisible);
+  };
+
+  const addLandmarkToTour = async (landmark) => {
+    try {
+      const userLocation = await Location.getCurrentPositionAsync({});
+      const origin = {
+        latitude: userLocation.coords.latitude,
+        longitude: userLocation.coords.longitude,
+      };
+      const destination = {
+        latitude: landmark.coordinate.latitude,
+        longitude: landmark.coordinate.longitude,
+      };
+  
+      const newWaypoints = [...waypoints];
+      if (currentDirectionsLandmarkId) {
+        const currentDirectionsLandmark = landmarks.find(l => l.id === currentDirectionsLandmarkId);
+        if (currentDirectionsLandmark) {
+          newWaypoints.unshift(`${currentDirectionsLandmark.coordinate.latitude},${currentDirectionsLandmark.coordinate.longitude}`);
+        }
+      }
+      newWaypoints.push(`${landmark.coordinate.latitude},${landmark.coordinate.longitude}`);
+      await fetchDirections(origin, destination, newWaypoints);
+      setWaypoints(newWaypoints);
+      setCurrentDirectionsLandmarkId(landmark.id);
+  
+      // Zoom in on the landmark
+      const zoomedRegion = {
+        latitude: landmark.coordinate.latitude,
+        longitude: landmark.coordinate.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(zoomedRegion, 1000);
+      }
+    } catch (error) {
+      console.error('Error adding landmark to tour:', error);
+    }
+  };
+  
+  
+  const removeLandmarkFromTour = async (landmark) => {
+    try {
+      const updatedWaypoints = waypoints.filter(
+        waypoint => waypoint !== `${landmark.coordinate.latitude},${landmark.coordinate.longitude}`
+      );
+      setWaypoints(updatedWaypoints);
+  
+      if (currentDirectionsLandmarkId === landmark.id) {
+        setCurrentDirectionsLandmarkId(null);
+      }
+  
+      const userLocation = await Location.getCurrentPositionAsync({});
+      const origin = {
+        latitude: userLocation.coords.latitude,
+        longitude: userLocation.coords.longitude,
+      };
+  
+      if (updatedWaypoints.length > 0) {
+        const destination = {
+          latitude: updatedWaypoints[updatedWaypoints.length - 1].split(',')[0],
+          longitude: updatedWaypoints[updatedWaypoints.length - 1].split(',')[1],
+        };
+        await fetchDirections(origin, destination, updatedWaypoints);
+      } else {
+        setRouteCoordinates([]);
+        setDirections([]);
+      }
+    } catch (error) {
+      console.error('Error removing landmark from tour:', error);
+    }
+  };
+  
+  const renderLandmarkItem = ({ item }) => {
+    if (item.id === initialNavigationLandmarkId) {
+      return null; // Exclude the initial navigation landmark
+    }
+  
+    const isActiveDirectionLandmark = waypoints.includes(`${item.coordinate.latitude},${item.coordinate.longitude}`) || currentDirectionsLandmarkId === item.id;
+    
+    return (
+      <TouchableOpacity style={styles.landmarkItem} onPress={() => handleSelectLandmark(item)}>
+        <Image source={item.image} style={styles.landmarkItemImage} />
+        <Text style={[styles.landmarkItemText, { color: TextColor }]}>{item.title}</Text>
+        <TouchableOpacity onPress={() => isActiveDirectionLandmark ? removeLandmarkFromTour(item) : addLandmarkToTour(item)}>
+          <MaterialIcons name={isActiveDirectionLandmark ? "location-off" : "add-location"} size={30} color="#2f95dc" style={styles.plusIcon} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -894,26 +1113,29 @@ const MapScreen: React.FC = () => {
             customMapStyle={colorScheme === 'light' ? lightMapStyle : darkMapStyle}
             rotateEnabled={true}
           >
-            {landmarks.map((landmark: Landmark) => (
-              <Marker
-                key={landmark.id}
-                coordinate={landmark.coordinate}
-                onPress={() => handleSelectLandmark(landmark)}
-              >
-                <View style={styles.markerContainer}>
-                  <Image
-                    source={landmark.image}
-                    style={[
-                      styles.markerImage,
-                      highlightedLandmark?.id === landmark.id && styles.highlightedMarkerImage
-                    ]}
-                  />
-                  {zoomLevel > 15 && (
-                    <Text style={[styles.markerText, { color: landmarkTextColor }]}>{landmark.title}</Text>
-                  )}
-                </View>
-              </Marker>
-            ))}
+            {landmarks.map((landmark: Landmark) => {
+              const isActiveDirectionLandmark = waypoints.includes(`${landmark.coordinate.latitude},${landmark.coordinate.longitude}`) || currentDirectionsLandmarkId === landmark.id;
+              return (
+                <Marker
+                  key={landmark.id}
+                  coordinate={landmark.coordinate}
+                  onPress={() => handleSelectLandmark(landmark)}
+                >
+                  <View style={styles.markerContainer}>
+                    <Image
+                      source={landmark.image}
+                      style={[
+                        styles.markerImage,
+                        (highlightedLandmark?.id === landmark.id || isActiveDirectionLandmark) && styles.highlightedMarkerImage
+                      ]}
+                    />
+                    {zoomLevel > 15 && (
+                      <Text style={[styles.markerText, { color: TextColor }]}>{landmark.title}</Text>
+                    )}
+                  </View>
+                </Marker>
+              );
+            })}
             {routeCoordinates.length > 0 && (
               <Polyline
                 coordinates={routeCoordinates}
@@ -924,68 +1146,57 @@ const MapScreen: React.FC = () => {
           </MapView>
         )}
         {!searchBarActive && !navigationMode && highlightedLandmark && (
-          <TouchableOpacity 
-            style={[styles.landmarkInfoCard, { backgroundColor: cardBackgroundColor }]} 
-            onPress={handleLandmarkCardPress}
+          <View 
+            style={[styles.landmarkInfoCard, { backgroundColor: BackgroundColor }]}
           >
             <Image source={highlightedLandmark.image} style={styles.landmarkImage} />
             <View style={styles.landmarkTextContainer}>
-              <Text style={[styles.landmarkTitle, { color: landmarkTextColor }]}>{highlightedLandmark.title}</Text>
-              <Text style={[styles.landmarkDescription, { color: landmarkTextColor }]}>{truncateText(highlightedLandmark.description, 50)}</Text>
+              <Text style={[styles.landmarkTitle, { color: TextColor }]}>{highlightedLandmark.title}</Text>
+              <Text style={[styles.landmarkDescription, { color: TextColor }]}>{truncateText(highlightedLandmark.description, 50)}</Text>
               <TouchableOpacity onPress={handleLandmarkCardPress} style={{ alignItems: 'center', marginTop: 10 }}>
                 <Text style={[styles.learnMoreText, { color: 'lightgrey' }]}>See more ...</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={handleCloseLandmarkCard}>
-              <MaterialIcons name="close" size={24} color={directionsButtonColor} />
+            <TouchableOpacity style={styles.closeButtonCircle} onPress={handleCloseLandmarkCard}>
+              <MaterialIcons name="close" size={28} color={directionsButtonColor} />
             </TouchableOpacity>
             <Animated.View style={[animatedStyle]}>
-              {!directionButtonPressed ? (
+              {directionButtonPressed && (waypoints.includes(`${highlightedLandmark.coordinate.latitude},${highlightedLandmark.coordinate.longitude}`) || currentDirectionsLandmarkId === highlightedLandmark.id) ? (
+                <TouchableOpacity style={[styles.directionsButton, {backgroundColor: 'white', marginTop: 30 }]} onPress={handleStartNavPress}>
+                  <FontAwesome6 name="location-arrow" size={24} color="black" />
+                </TouchableOpacity>
+              ) : (
                 <TouchableOpacity style={[styles.directionsButton, { marginTop: 30 }]} onPress={() => handleDirectionsPress(highlightedLandmark)}>
                   <FontAwesome6 name="arrow-alt-circle-right" size={28} color={directionsButtonColor} />
                 </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={[styles.directionsButton, {backgroundColor: 'white'}]} onPress={handleStartNavPress}>
-                  <FontAwesome6 name="location-arrow" size={24} color="black" />
-                </TouchableOpacity>
               )}
             </Animated.View>
-          </TouchableOpacity>
+          </View>
         )}
         {navigationMode && (
           <>
-            <Animated.View style={[styles.navigationCard, { backgroundColor: cardBackgroundColor }]}>
-              <TouchableOpacity style={styles.exitButton} onPress={handleExitNavPress}>
-                <MaterialCommunityIcons name="close" size={24} color={"white"} />
+            <Animated.View style={[styles.navigationCard, { backgroundColor: BackgroundColor }]}>
+              <TouchableOpacity style={[styles.exitButton,  {borderColor: TextColor }]} onPress={handleExitNavPress}>
+                <MaterialCommunityIcons name="close" size={24} color={ TextColor }/>
               </TouchableOpacity>
               <View style={styles.navigationInfoContainer}>
-                <Text style={[styles.navigationText, { color: landmarkTextColor }]}>
+                <Text style={[styles.navigationText, { color: TextColor }]}>
                   {remainingTime}
                 </Text>
-                <Text style={[styles.navigationText, { color: landmarkTextColor }]}>
+                <Text style={[styles.navigationText, { color: TextColor }]}>
                   {distanceToDestination}
                 </Text>
               </View>
-              <TouchableOpacity style={[styles.landmarkButton, { backgroundColor: directionsButtonColor,}]} onPress={handleLandmarkButtonPress}>
+              <TouchableOpacity style={[styles.landmarkButton, { backgroundColor: directionsButtonColor}]} onPress={handleLandmarkButtonPress}>
                 <MaterialIcons name="add-location-alt" size={24} color="white" />
               </TouchableOpacity>
             </Animated.View>
             {isSecondCardVisible && (
-              <Animated.View style={[styles.secondCard, { backgroundColor: cardBackgroundColor }]}>
+              <Animated.View style={[styles.secondCard, { backgroundColor: BackgroundColor }]}>
                 <FlatList
                   data={landmarks}
-                  keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.landmarkItem} onPress={() => handleSelectLandmark(item)}>
-                      <Image source={item.image} style={styles.landmarkItemImage} />
-                      <Text style={[styles.landmarkItemText, { color: landmarkTextColor }]}>{item.title}</Text>
-                      <CheckBox
-                        checked={checkedLandmarks.has(item.id)}
-                        onPress={() => handleCheckboxPress(item.id)}
-                        containerStyle={styles.checkbox}
-                      />
-                    </TouchableOpacity>
-                  )}
+                  keyExtractor={(item) => item.id} // Ensure unique keys for landmarks
+                  renderItem={renderLandmarkItem}
                 />
               </Animated.View>
             )}
@@ -993,12 +1204,39 @@ const MapScreen: React.FC = () => {
               <FlatList
                 data={[directions[currentStepIndex]]}
                 renderItem={renderDirectionStep}
-                keyExtractor={(item) => item.key}
+                keyExtractor={(item) => item.key} // Ensure unique keys for directions
               />
             </View>
+            {currentDirectionsLandmarkId && (
+              <TouchableOpacity
+                style={[styles.currentLandmarkCard, { backgroundColor: BackgroundColor }]}
+                onPress={() => setIsCurrentLandmarkCardExpanded(!isCurrentLandmarkCardExpanded)}
+              >
+                <Text style={[styles.currentLandmarkText, { color: TextColor }]}>
+                  Navigating to: {landmarks.find(l => l.id === currentDirectionsLandmarkId)?.title}
+                </Text>
+                {isCurrentLandmarkCardExpanded && (
+                  <FlatList
+                    data={waypoints
+                      .map(waypoint => landmarks.find(l => `${l.coordinate.latitude},${l.coordinate.longitude}` === waypoint))
+                      .filter(Boolean)
+                      .filter((landmark, index, self) => landmark?.id !== currentDirectionsLandmarkId && index === self.findIndex(l => l?.id === landmark?.id)) // Ensure unique and exclude current landmark
+                    }
+                    keyExtractor={(item) => item.id} // Use item.id for unique keys
+                    renderItem={({ item }) => (
+                      <View style={styles.currentLandmarkItem}>
+                        <Text style={[styles.currentLandmarkText, { color: TextColor }]}>
+                          {item.title}
+                        </Text>
+                      </View>
+                    )}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
           </>
         )}
-        <Animated.View style={[styles.bottomSheet, bottomSheetAnimatedStyle, { backgroundColor: bottomSheetBackgroundColor, zIndex: 5 }]}>
+        <Animated.View style={[styles.bottomSheet, bottomSheetAnimatedStyle, { backgroundColor: BackgroundColor, zIndex: 5 }]}>
           <PanGestureHandler onGestureEvent={handleSheetGesture} onHandlerStateChange={handleSheetClose}>
             <View style={styles.bottomSheetHandleWrapper}>
               <Animated.View style={[styles.bottomSheetHandle, { backgroundColor: bottomSheetHandleColor }]} />
@@ -1008,8 +1246,8 @@ const MapScreen: React.FC = () => {
             {highlightedLandmark && (
               <>
                 <Image source={highlightedLandmark.image} style={styles.bottomSheetLandmarkImage} />
-                <Text style={[styles.landmarkTitle, { color: landmarkTextColor }]}>{highlightedLandmark.title}</Text>
-                <Text style={[styles.landmarkDescription, { color: landmarkTextColor }]}>{highlightedLandmark.description}</Text>
+                <Text style={[styles.landmarkTitle, { color: TextColor }]}>{highlightedLandmark.title}</Text>
+                <Text style={[styles.landmarkDescription, { color: TextColor }]}>{highlightedLandmark.description}</Text>
                 <TouchableOpacity onPress={() => handleLearnMorePress(highlightedLandmark)}>
                   <Text style={[styles.learnMoreText]}>Learn more ...</Text>
                 </TouchableOpacity>
@@ -1023,14 +1261,14 @@ const MapScreen: React.FC = () => {
           </View>
         </Animated.View>
         {!searchBarActive && !navigationMode && (
-          <Animated.View style={[styles.exploreSheet, exploreSheetAnimatedStyle, { backgroundColor: bottomSheetBackgroundColor, zIndex: 4, height: exploreSheetFullHeight }]}>
+          <Animated.View style={[styles.exploreSheet, exploreSheetAnimatedStyle, { backgroundColor: BackgroundColor, zIndex: 4, height: exploreSheetFullHeight }]}>
             <PanGestureHandler onGestureEvent={handleExploreSheetGesture} onHandlerStateChange={handleExploreSheetClose}>
               <View style={styles.bottomSheetHandleWrapper}>
                 <Animated.View style={[styles.bottomSheetHandle, { backgroundColor: bottomSheetHandleColor }]} />
               </View>
             </PanGestureHandler>
             <View style={styles.exploreSheetContent}>
-              <Text style={[styles.exploreHeaderText, { color: landmarkTextColor }]}>Explore</Text>
+              <Text style={[styles.exploreHeaderText, { color: TextColor }]}>Explore</Text>
               <View style={styles.exploreFilterContainer}>
                 <TouchableOpacity
                   style={[
@@ -1039,7 +1277,7 @@ const MapScreen: React.FC = () => {
                   ]}
                   onPress={() => setFilter('Nearby')}
                 >
-                  <Text style={styles.exploreFilterText}>Nearby</Text>
+                  <Text style={[styles.exploreFilterText, filter === 'Nearby' && styles.activeFilterText]}>Nearby</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -1048,7 +1286,7 @@ const MapScreen: React.FC = () => {
                   ]}
                   onPress={() => setFilter('Popular')}
                 >
-                  <Text style={styles.exploreFilterText}>Popular</Text>
+                  <Text style={[styles.exploreFilterText, filter === 'Popular' && styles.activeFilterText]}>Popular</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -1057,7 +1295,7 @@ const MapScreen: React.FC = () => {
                   ]}
                   onPress={() => setFilter('Favorites')}
                 >
-                  <Text style={styles.exploreFilterText}>Favorites</Text>
+                  <Text style={[styles.exploreFilterText, filter === 'Favorites' && styles.activeFilterText]}>Favorites</Text>
                 </TouchableOpacity>
               </View>
               {filter === 'Favorites' && filteredExploreLandmarks.length === 0 ? (
@@ -1081,13 +1319,13 @@ const MapScreen: React.FC = () => {
         {!bottomSheetOpen && !navigationMode && (
           <View style={[styles.searchContainer, { backgroundColor: searchBarBackgroundColor }, (searchBarActive || exploreSheetOpen) ? styles.searchContainerActive : styles.searchContainerInactive]}>
             <TouchableOpacity style={styles.iconButton} onPress={handleSearchIconPress}>
-              <FontAwesome5 name="search-location" size={20} color={searchTextColor} />
+              <FontAwesome5 name="search-location" size={20} color={TextColor} />
             </TouchableOpacity>
             <TextInput
               ref={searchInputRef}
-              style={[styles.searchInput, { color: searchTextColor }]}
+              style={[styles.searchInput, { color: TextColor }]}
               placeholder="Search"
-              placeholderTextColor={searchTextColor}
+              placeholderTextColor={TextColor}
               value={search}
               onChangeText={(text) => setSearch(text)}
               onSubmitEditing={handleSearch}
@@ -1095,7 +1333,7 @@ const MapScreen: React.FC = () => {
               onBlur={() => !search && setSearchBarActive(false)}
             />
             <TouchableOpacity style={styles.iconButton} onPress={handleToggleSearchBar}>
-              <MaterialIcons name={searchBarActive ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={searchTextColor} />
+              <MaterialIcons name={searchBarActive ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} size={24} color={TextColor} />
             </TouchableOpacity>
             <TouchableOpacity style={[styles.iconButton, { backgroundColor: directionsButtonColor }]} onPress={handleExplorePress}>
               <MaterialCommunityIcons name="map-search" size={24} color="white" />
@@ -1115,13 +1353,13 @@ const MapScreen: React.FC = () => {
                     style={[styles.searchResultItem, { backgroundColor: searchBarBackgroundColor }]}
                     onPress={() => handleSelectLandmark(item)}
                   >
-                    <Text style={[styles.searchResultText, { color: searchTextColor }]}>{item.title}</Text>
+                    <Text style={[styles.searchResultText, { color: TextColor }]}>{item.title}</Text>
                   </TouchableOpacity>
                 )}
               />
             ) : (
               <View style={[styles.searchResultItem, { backgroundColor: searchBarBackgroundColor }]}>
-                <Text style={[styles.searchResultText, { color: searchTextColor }]}>No landmarks found</Text>
+                <Text style={[styles.searchResultText, { color: TextColor }]}>No landmarks found</Text>
               </View>
             )}
             <LinearGradient
@@ -1133,7 +1371,7 @@ const MapScreen: React.FC = () => {
         )}
       </ThemedView>
     </GestureHandlerRootView>
-  );
+  );  
 };
 
 const styles = StyleSheet.create({
@@ -1146,6 +1384,7 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+    bottom: -75,
   },
   customMarker: {
     width: 20,
@@ -1267,8 +1506,9 @@ const styles = StyleSheet.create({
     top: 50,
     left: 20,
     right: 20,
+    height: 140,
     padding: 10,
-    borderRadius: 10,
+    borderRadius: 15,
     zIndex: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1301,11 +1541,16 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 360,
   },
-  closeButton: {
-    padding: 10,
+  closeButtonCircle: {
     position: 'absolute',
     right: 12,
     top: 5,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   bottomSheet: {
     position: 'absolute',
@@ -1382,9 +1627,17 @@ const styles = StyleSheet.create({
   exploreItemTextContainer: {
     padding: 10,
   },
+  exploreItemTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   exploreItemTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  ratingIcon: {
+    marginLeft: 15,
+    marginRight: 5,
   },
   exploreItemDescriptionContainer: {
     flexDirection: 'row',
@@ -1421,17 +1674,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   exploreFilterButton: {
-    backgroundColor: '#f0f0f0',
     borderRadius: 20,
     paddingVertical: 5,
     paddingHorizontal: 10,
     marginRight: 10,
+    backgroundColor: 'white',
   },
   exploreFilterText: {
     fontSize: 14,
+    color: 'black',
   },
   activeFilterButton: {
     backgroundColor: '#2f95dc',
+  },
+  activeFilterText: {
+    color: 'white',
   },
   noFavoritesText: {
     textAlign: 'center',
@@ -1477,6 +1734,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     paddingHorizontal: 20,
+    zIndex: 1,
   },
   navigationText: {
     fontSize: 18,
@@ -1495,7 +1753,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: '#fff',
   },
   directionsContainer: {
     position: 'absolute',
@@ -1536,24 +1793,26 @@ const styles = StyleSheet.create({
   },
   secondCard: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 0,
     left: 0,
     right: 0,
-    height: 200,
+    height: 400,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
-    elevation: 10,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-  },
+    zIndex: 0,
+    },
   landmarkItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '90%',
+    justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
@@ -1566,11 +1825,35 @@ const styles = StyleSheet.create({
   },
   landmarkItemText: {
     fontSize: 16,
-    flex: 1,
   },
-  checkbox: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
+  currentLandmarkCard: {
+    position: 'absolute',
+    width: '60%',
+    top: 150,
+    left: 20,
+    right: 20,
+    padding: 10,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  currentLandmarkText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    padding: 10,
+  },
+  currentLandmarkItem: {
+    padding: 5,
+    borderTopWidth: 1,
+    borderTopColor: '#ccc',
+    width: '100%',
+    alignItems: 'center',
   },
 });
 

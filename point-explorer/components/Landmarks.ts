@@ -7,6 +7,7 @@ export interface Landmark {
     longitude: number;
   };
   image: any;
+  rating?: number;
 }
 
 export const landmarks: Landmark[] = [
@@ -19,6 +20,7 @@ export const landmarks: Landmark[] = [
       longitude: -1.137858308814747,
     },
     image: require('@/assets/images/sneinton-market.png'),
+    rating: 4.5,
   },
   {
     id: '2',
@@ -29,6 +31,7 @@ export const landmarks: Landmark[] = [
       longitude: -1.1317076062214408,
     },
     image: require('@/assets/images/william-booth.png'),
+    rating: 4.0,
   },
   {
     id: '3',
@@ -39,6 +42,7 @@ export const landmarks: Landmark[] = [
       longitude: -1.1315913678468925,
     },
     image: require('@/assets/images/saint-stephens-church.png'),
+    rating: 4.8,
   },
   {
     id: '4',
@@ -49,6 +53,7 @@ export const landmarks: Landmark[] = [
       longitude: -1.129385057166798,
     },
     image: require('@/assets/images/greens-windmill.jpg'),
+    rating: 4.7,
   },
   {
     id: '5',
@@ -59,6 +64,7 @@ export const landmarks: Landmark[] = [
       longitude: -1.1260245544918952,
     },
     image: require('@/assets/images/sultania-mosque.jpg'),
+    rating: 4.2,
   },
   {
     id: '6',
@@ -69,6 +75,7 @@ export const landmarks: Landmark[] = [
       longitude: -1.1208745350120322,
     },
     image: require('@/assets/images/dales-centre-library.png'),
+    rating: 4.3,
   },
   {
     id: '7',
@@ -79,16 +86,18 @@ export const landmarks: Landmark[] = [
       longitude: -1.122674937843758,
     },
     image: require('@/assets/images/sneinton-boulevard.png'),
+    rating: 4.1,
   },
   {
     id: '8',
-    title: 'Community Hub Sneinton',
+    title: 'Sneinton Community Hub',
     description: 'The Community Hub in Sneinton is a central spot for local residents to gather, engage in activities, and access various services. It plays a vital role in fostering community spirit and support.',
     coordinate: {
       latitude: 52.95047755859033,
       longitude: -1.1262303721032474,
     },
     image: require('@/assets/images/community-hub.png'),
+    rating: 4.0,
   },
   {
     id: '9',
@@ -99,16 +108,18 @@ export const landmarks: Landmark[] = [
       longitude: -1.1241563810338335,
     },
     image: require('@/assets/images/stchristophers-church.png'),
+    rating: 4.6,
   },
   {
     id: '10',
-    title: 'Former Bendigo/Wrestlers Arms Public House',
+    title: 'Wrestlers Arms Public House',
     description: 'This former public house is named after William “Bendigo” Thompson, a famous 19th-century boxer. It’s a historical site that offers a glimpse into the local history and culture.',
     coordinate: {
       latitude: 52.95031467368414,
       longitude: -1.129093558640146,
     },
     image: require('@/assets/images/former-bendigo.jpg'),
+    rating: 4.4,
   },
   {
     id: '11',
@@ -119,6 +130,7 @@ export const landmarks: Landmark[] = [
       longitude: -1.1311020059251706,
     },
     image: require('@/assets/images/caves.png'),
+    rating: 4.5,
   },
   {
     id: '12',
@@ -129,5 +141,6 @@ export const landmarks: Landmark[] = [
       longitude: -1.1330527703839708,
     },
     image: require('@/assets/images/sneinton-dragon.png'),
+    rating: 4.3,
   },
 ];
