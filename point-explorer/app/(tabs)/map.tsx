@@ -23,6 +23,7 @@ const MapScreen: React.FC = () => {
   const navigation = useNavigation();
   const [location, setLocation] = useState<Region | null>(null);
   const [search, setSearch] = useState('');
+  const [isCentered, setIsCentered] = useState(false);
   const [highlightedLandmark, setHighlightedLandmark] = useState<Landmark | null>(null);
   const [searchBarActive, setSearchBarActive] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(0);
@@ -141,46 +142,63 @@ const MapScreen: React.FC = () => {
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
   
-    if (navigationMode) {
-      (async () => {
-        locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 1000,
-            distanceInterval: 1,
-          },
-          async (newLocation) => {
-            const { latitude, longitude } = newLocation.coords;
-            setLocation((prevLocation) => ({
-              ...prevLocation,
+    const startLocationTracking = async () => {
+      locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000,
+          distanceInterval: 1,
+        },
+        (newLocation) => {
+          const { latitude, longitude } = newLocation.coords;
+          setLocation((prevLocation) => ({
+            ...prevLocation,
+            latitude,
+            longitude,
+          }));
+  
+          if (isCentered && mapRef.current) {
+            const updatedRegion = {
               latitude,
               longitude,
-            }));
+              latitudeDelta: 0.015,
+              longitudeDelta: 0.0121,
+            };
+            mapRef.current.animateToRegion(updatedRegion, 1000);
+          }
   
-            if (currentDirectionsLandmarkId) {
-              const destination = landmarks.find(l => l.id === currentDirectionsLandmarkId)?.coordinate;
-              if (destination) {
-                const distanceToDest = calculateDistance(
-                  latitude,
-                  longitude,
-                  destination.latitude,
-                  destination.longitude
-                );
-                setDistanceToDestination((distanceToDest / 1000).toFixed(2) + ' km');
+          if (currentDirectionsLandmarkId) {
+            const destination = landmarks.find(l => l.id === currentDirectionsLandmarkId)?.coordinate;
+            if (destination) {
+              const distanceToDest = calculateDistance(
+                latitude,
+                longitude,
+                destination.latitude,
+                destination.longitude
+              );
+              setDistanceToDestination((distanceToDest / 1000).toFixed(2) + ' km');
   
-                const apiKey = 'AIzaSyBwT5euSmaG7X8epNBW9cT8y3DfvhWcnic';
-                const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${destination.latitude},${destination.longitude}&mode=walking&key=${apiKey}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                if (data.routes.length) {
-                  const newTravelTime = data.routes[0].legs[0].duration.text;
-                  setRemainingTime(newTravelTime);
-                }
-              }
+              const apiKey = 'AIzaSyBwT5euSmaG7X8epNBW9cT8y3DfvhWcnic';
+              const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${destination.latitude},${destination.longitude}&mode=walking&key=${apiKey}`;
+              fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                  if (data.routes.length) {
+                    const newTravelTime = data.routes[0].legs[0].duration.text;
+                    setRemainingTime(newTravelTime);
+                  }
+                })
+                .catch(error => {
+                  console.error('Error fetching directions:', error);
+                });
             }
           }
-        );
-      })();
+        }
+      );
+    };
+  
+    if (isCentered) {
+      startLocationTracking();
     } else if (locationSubscription) {
       locationSubscription.remove();
     }
@@ -190,7 +208,7 @@ const MapScreen: React.FC = () => {
         locationSubscription.remove();
       }
     };
-  }, [navigationMode, directions, currentDirectionsLandmarkId]);
+  }, [isCentered, currentDirectionsLandmarkId]);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3; // metres
@@ -225,7 +243,7 @@ const MapScreen: React.FC = () => {
     if (mapRef.current) {
       mapRef.current.animateToRegion(newLocation, 1000);
     }
-  };
+  };  
 
   const handleSearchIconPress = () => {
     setSearchBarActive(true);
@@ -271,6 +289,29 @@ const MapScreen: React.FC = () => {
       handleSelectLandmark(matchedLandmark);
     }
   };
+
+const handleLocationPress = async () => {
+  if (isCentered) {
+    setIsCentered(false);
+  } else {
+    try {
+      let location = await Location.getCurrentPositionAsync({});
+      const newRegion = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.0121,
+      };
+      setLocation(newRegion);
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(newRegion, 1000);
+      }
+      setIsCentered(true); // Centered on user's location
+    } catch (error) {
+      console.error('Error fetching user location:', error);
+    }
+  }
+};
 
   const fetchDirections = async (origin, destination, waypoints = []) => {
     try {
@@ -362,6 +403,7 @@ const MapScreen: React.FC = () => {
                   mapRef.current.animateToRegion(zoomedRegion, 1000);
                 }
                 setHighlightedLandmark(landmark);
+                setBottomSheetOpen(false); // Close landmark info card
               } catch (error) {
                 console.error('Error fetching user location:', error);
               }
@@ -403,7 +445,8 @@ const MapScreen: React.FC = () => {
                 if (mapRef.current) {
                   mapRef.current.animateToRegion(zoomedRegion, 1000);
                 }
-                setHighlightedLandmark(landmark);
+                setHighlightedLandmark(null);
+                setBottomSheetOpen(false); // Close landmark info card
               } catch (error) {
                 console.error('Error adding landmark to tour:', error);
               }
@@ -461,12 +504,12 @@ const MapScreen: React.FC = () => {
           mapRef.current.animateToRegion(zoomedRegion, 1000);
         }
         setHighlightedLandmark(landmark);
+        setBottomSheetOpen(false); // Close landmark info card
       } catch (error) {
         console.error('Error fetching user location:', error);
       }
     }
   };
-  
 
   const handleExitNavPress = () => {
     setNavigationMode(false);
@@ -496,22 +539,31 @@ const MapScreen: React.FC = () => {
         latitudeDelta: 0.015,
         longitudeDelta: 0.0121,
       };
-      setLocation(initialRegion);
-      setHighlightedLandmark(null);
-      setRouteCoordinates([]);
-      setDirections([]);
-      setCurrentDirectionsLandmarkId(null);
-      setInitialNavigationLandmarkId(null);
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(initialRegion, 1000);
+  
+      if (currentDirectionsLandmarkId && highlightedLandmark && highlightedLandmark.id === currentDirectionsLandmarkId) {
+        // If closing the landmark card for the landmark with active directions, reset directions
+        setRouteCoordinates([]);
+        setDirections([]);
+        setCurrentDirectionsLandmarkId(null);
+        setInitialNavigationLandmarkId(null);
+        setDistanceToDestination('');
+        setRemainingTime('');
+        setWaypoints([]);
+  
+        setLocation(initialRegion);
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(initialRegion, 1000);
+        }
       }
+  
+      setHighlightedLandmark(null);
+  
       translateY.value = withSpring(bottomSheetFullHeight, { damping: 15, stiffness: 100 });
       setBottomSheetOpen(false);
     } catch (error) {
       console.error('Error resetting map position:', error);
     }
-  };
-  
+  };  
 
   const handleExplorePress = () => {
     setSearch('');
@@ -943,7 +995,7 @@ const MapScreen: React.FC = () => {
         <View style={styles.exploreItemTextContainer}>
           <View style={styles.exploreItemTitleContainer}>
             <Text style={[styles.exploreItemTitle, { color: TextColor }]}>{item.title}</Text>
-            <FontAwesome name="star" size={16} color="#FFD700" style={styles.ratingIcon} />
+            <FontAwesome name="star" size={16} color="#2f95dc" style={styles.ratingIcon} />
             <Text style={[styles.exploreItemRating, { color: TextColor }]}>{item.rating?.toFixed(1)}</Text>
           </View>
           <View style={styles.exploreItemDescriptionContainer}>
@@ -1075,12 +1127,12 @@ const MapScreen: React.FC = () => {
       console.error('Error removing landmark from tour:', error);
     }
   };
-  
+
   const renderLandmarkItem = ({ item }) => {
     if (item.id === initialNavigationLandmarkId) {
       return null; // Exclude the initial navigation landmark
     }
-  
+
     const isActiveDirectionLandmark = waypoints.includes(`${item.coordinate.latitude},${item.coordinate.longitude}`) || currentDirectionsLandmarkId === item.id;
     
     return (
@@ -1094,6 +1146,27 @@ const MapScreen: React.FC = () => {
     );
   };
 
+  const TourCard = ({ waypoints, onRemoveLandmark }) => {  
+    return (
+      <View style={[styles.tourCard]}>
+        <Text style={[styles.tourCardTitle, { color: textColor }]}>Current Tour</Text>
+        {waypoints.map((waypoint, index) => {
+          const landmark = landmarks.find(l => `${l.coordinate.latitude},${l.coordinate.longitude}` === waypoint);
+          if (!landmark) return null;
+  
+          return (
+            <View key={index} style={styles.tourItemContainer}>
+              <Text style={[styles.tourItemText, { color: textColor }]}>{landmark.title}</Text>
+              <TouchableOpacity onPress={() => onRemoveLandmark(landmark)}>
+                <MaterialIcons name="close" size={24} color="#ff0000" />
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+  
   return (
     <GestureHandlerRootView style={styles.container}>
       <ThemedView style={[styles.container, { backgroundColor }]}>
@@ -1109,6 +1182,9 @@ const MapScreen: React.FC = () => {
             onRegionChangeComplete={(region) => {
               setLocation(region);
               setZoomLevel(calculateZoomLevel(region.latitudeDelta));
+              if (isCentered) {
+                setIsCentered(false); // User started looking around
+              }
             }}
             customMapStyle={colorScheme === 'light' ? lightMapStyle : darkMapStyle}
             rotateEnabled={true}
@@ -1145,6 +1221,14 @@ const MapScreen: React.FC = () => {
             )}
           </MapView>
         )}
+
+        <TouchableOpacity
+          style={[styles.locationButton, { backgroundColor: isCentered ? '#173951' : backgroundColor }]}
+          onPress={handleLocationPress}
+        >
+          <FontAwesome6 name="location-crosshairs" size={24} color={isCentered ? '#2f95dc' : '#fff'} />
+        </TouchableOpacity>
+
         {!searchBarActive && !navigationMode && highlightedLandmark && (
           <View 
             style={[styles.landmarkInfoCard, { backgroundColor: BackgroundColor }]}
@@ -1235,6 +1319,23 @@ const MapScreen: React.FC = () => {
               </TouchableOpacity>
             )}
           </>
+        )}
+        {!searchBarActive && !navigationMode && !highlightedLandmark && waypoints.length > 0 && (
+          <View style={[styles.tourCard, { backgroundColor: BackgroundColor }]}>
+            <Text style={[styles.tourCardTitle, { color: TextColor }]}>Current Tour</Text>
+            {waypoints.map((waypoint, index) => {
+              const landmark = landmarks.find(l => `${l.coordinate.latitude},${l.coordinate.longitude}` === waypoint);
+              if (!landmark) return null;
+              return (
+                <View key={index} style={styles.tourItemContainer}>
+                  <Text style={[styles.tourItemText, { color: TextColor }]}>{landmark.title}</Text>
+                  <TouchableOpacity onPress={() => removeLandmarkFromTour(landmark)}>
+                    <MaterialIcons name="close" size={20} color={directionsButtonColor} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
         )}
         <Animated.View style={[styles.bottomSheet, bottomSheetAnimatedStyle, { backgroundColor: BackgroundColor, zIndex: 5 }]}>
           <PanGestureHandler onGestureEvent={handleSheetGesture} onHandlerStateChange={handleSheetClose}>
@@ -1500,6 +1601,25 @@ const styles = StyleSheet.create({
   },
   searchResultText: {
     fontSize: 16,
+  },
+  locationButton: {
+    position: 'absolute',
+    bottom: 110, // Adjust based on the position of your search bar
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  locationButtonActive: {
+  },
+  locationButtonInactive: {
   },
   landmarkInfoCard: {
     position: 'absolute',
@@ -1807,7 +1927,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
     zIndex: 0,
-    },
+  },
   landmarkItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1854,6 +1974,33 @@ const styles = StyleSheet.create({
     borderTopColor: '#ccc',
     width: '100%',
     alignItems: 'center',
+  },
+  tourCard: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+    borderRadius: 15,
+  },
+  tourCardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  tourItemContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  tourItemText: {
+    fontSize: 16,
   },
 });
 
