@@ -1,25 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image, StyleSheet, ScrollView, TouchableOpacity, Modal, View, Animated } from 'react-native';
+import { Image, StyleSheet, View, TouchableOpacity, Modal, Animated, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { achievements } from '@/components/Achievements';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useColorScheme } from 'react-native';
+import { Colors } from '@/constants/Colors';
 import { useNavigation } from 'expo-router';
 import { landmarks } from '@/components/Landmarks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import WelcomeScreen from '../screens/welcomeScreen'; // Adjust the import path as needed
+import WelcomeScreen from '../screens/welcomeScreen';
 
 export default function HomeScreen() {
   const [isModalVisible, setModalVisible] = useState(false);
   const [tooltipData, setTooltipData] = useState({ title: '', description: '', icon: '', iconType: '' });
   const [showAllAchievements, setShowAllAchievements] = useState(false);
   const [showAllDiscover, setShowAllDiscover] = useState(false);
+  const [showAllQuizzes, setShowAllQuizzes] = useState(false); // Add new state for quizzes modal
   const [firstOpen, setFirstOpen] = useState(true);
   const [showWelcome, setShowWelcome] = useState(true);
+
+  const [guideTextIndex, setGuideTextIndex] = useState(0);
+  const [typedText, setTypedText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const guideTexts = ["I'm your digital tour guide!", "Ask me anything!", "What would you like to know?"];
 
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const navigation = useNavigation();
@@ -30,6 +40,64 @@ export default function HomeScreen() {
   const iconColor = colorScheme === 'light' ? '#000' : '#fff';
   const viewAllColor = colorScheme === 'light' ? '#555555' : '#d3d3d3';
   const achievementCardColor = colorScheme === 'light' ? '#e6e6e6' : '#101010';
+  const highlightColor = useThemeColor({ light: Colors.light.highlight, dark: Colors.dark.highlight }, 'highlight');
+
+  const typingSpeed = 25; // Adjust typing speed
+  const deletingSpeed = 50; // Adjust deleting speed
+  const delayBeforeDelete = 2000; // Delay before starting to delete text
+
+  const quizzes = [
+    { id: 1, title: 'Quiz 1: History of Landmarks', description: 'Test your knowledge of famous landmarks!' },
+    { id: 2, title: 'Quiz 2: Cultural Heritage', description: 'How well do you know world cultures?' },
+    { id: 3, title: 'Quiz 3: Architecture Styles', description: 'Identify different architectural styles.' },
+  ];
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Close the modal when the screen comes into focus
+      setModalVisible(false);
+      setShowAllDiscover(false);  // Reset the state for "Discover All"
+      return () => {
+        // Optional: Any clean-up actions if necessary
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    let timeoutId;
+    
+    const currentText = guideTexts[guideTextIndex];
+    if (isDeleting) {
+      // If deleting, reduce the text length by 1
+      timeoutId = setTimeout(() => {
+        setTypedText((prev) => prev.slice(0, -1));
+        if (typedText === '') {
+          setIsDeleting(false);
+          setGuideTextIndex((prevIndex) => (prevIndex + 1) % guideTexts.length); // Move to the next text
+        }
+      }, deletingSpeed);
+    } else {
+      // If typing, increase the text length by 1
+      timeoutId = setTimeout(() => {
+        setTypedText(currentText.slice(0, typedText.length + 1));
+        if (typedText === currentText) {
+          timeoutId = setTimeout(() => setIsDeleting(true), delayBeforeDelete); // Start deleting after delay
+        }
+      }, typingSpeed);
+    }
+
+    return () => clearTimeout(timeoutId); // Clean up timeout on unmount
+  }, [typedText, isDeleting, guideTextIndex]);
+
+  const handleQuizPress = (quizName) => {
+    // Navigate to the quiz screen based on the quiz selected
+    navigation.navigate('screens/quizScreen', { quizName });
+  };
+
+  const handlePremiumPress = () => {
+    // Navigate to the PremiumScreen
+    navigation.navigate('screens/premiumScreen'); // Make sure the screen name matches your navigation setup
+  };
 
   const handlePressAchievement = (title, description, icon, iconType) => {
     setTooltipData({ title, description, icon, iconType });
@@ -50,6 +118,14 @@ export default function HomeScreen() {
     setTooltipData({ title: 'Discover', description: '', icon: '', iconType: '' });
     setShowAllDiscover(true);
     setShowAllAchievements(false);
+    setModalVisible(true);
+  };
+
+  const handleViewAllQuizzes = () => {
+    setTooltipData({ title: 'Quizzes', description: '', icon: '', iconType: '' });
+    setShowAllQuizzes(true);
+    setShowAllAchievements(false);
+    setShowAllDiscover(false);
     setModalVisible(true);
   };
 
@@ -106,34 +182,94 @@ export default function HomeScreen() {
     }
   };
 
+  const handleGuideButtonPress = () => {
+    navigation.navigate('screens/AIChatScreen'); // Navigate to AI Chat Screen
+  };
+
   const handlePress = (landmarkName) => {
+    setShowAllDiscover(false);
+    setModalVisible(false);
     const selectedLandmark = landmarks.find((landmark) => landmark.title === landmarkName);
     if (selectedLandmark) {
-      navigation.navigate('landmarkDetails', { landmark: selectedLandmark });
+      navigation.navigate('screens/landmarkdetailsScreen', { landmark: selectedLandmark });
     }
+  };
+
+  const handleGetStartedPress = (landmark) => {
+    navigation.navigate('map', { initialLandmark: landmark });
   };
 
   if (showWelcome) {
     return <WelcomeScreen onComplete={handleWelcomeComplete} />;
   }
 
+  const renderLandmarkRow = (index1, index2) => (
+    <View style={styles.discoveryItemRow} key={`${index1}-${index2}`}>
+      <TouchableOpacity style={styles.discoveryItemLarge} onPress={() => handlePress(landmarks[index1].title)}>
+        <Image source={landmarks[index1].image} style={styles.imageSmall} />
+        <View style={styles.textOverlaySmall}>
+          <ThemedText type="default" style={styles.discoveryTitleSmall}>
+            {index1 === 1 ? 'Learn more about William Booth' : landmarks[index1].title}
+          </ThemedText>
+        </View>
+      </TouchableOpacity>
+      {index2 < landmarks.length && (
+        <TouchableOpacity style={styles.discoveryItemSmall} onPress={() => handlePress(landmarks[index2].title)}>
+          <Image source={landmarks[index2].image} style={styles.imageSmall} />
+          <View style={styles.textOverlaySmall}>
+            <ThemedText type="default" style={styles.discoveryTitleSmall}>{landmarks[index2].title}</ThemedText>
+          </View>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const renderLargeLandmarks = () => (
+    landmarks.map((landmark, index) => (
+      <TouchableOpacity key={index} style={styles.discoveryCard} onPress={() => handlePress(landmark.title)}>
+        <View style={styles.card}>
+          <Image source={landmark.image} style={styles.cardImage} />
+          <View style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+              <ThemedText type="default" style={styles.cardTitle}>{landmark.title}</ThemedText>
+              <View style={styles.ratingContainer}>
+                <FontAwesome name="star" size={16} color={highlightColor} style={styles.ratingIcon} />
+                <ThemedText type="default" style={styles.ratingText}>{landmark.rating?.toFixed(1) ?? 'N/A'}</ThemedText>
+              </View>
+            </View>
+            <ThemedText type="default" style={styles.cardDescription} numberOfLines={3}>{landmark.description}</ThemedText>
+            <View style={styles.cardFooter}>
+              <TouchableOpacity onPress={() => handlePress(landmark.title)}>
+                <ThemedText type="link" style={styles.learnMoreText}>Learn More</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    ))
+  );
+
   return (
     <ScrollView style={[styles.container, { backgroundColor }]}>
       <View style={styles.headerContainer}>
         <View style={styles.header}>
           <MaterialCommunityIcons name="face-man-profile" size={42} color={iconColor} style={styles.profileIcon} />
-          <View>
-            <ThemedText type="default" style={styles.headerText}>hi, John</ThemedText>
-            <ThemedText type="default" style={styles.subHeaderText}>happy to see you :)</ThemedText>
-          </View>
+          <TouchableOpacity style={styles.guideButtonWrapper} onPress={handleGuideButtonPress} activeOpacity={0.7}>
+            <View style={styles.guideButton}>
+              <ThemedText type="default" style={styles.guideButtonText}>
+                {typedText}
+              </ThemedText>
+            </View>
+            <View style={styles.guideButtonTail} />
+          </TouchableOpacity>
         </View>
       </View>
 
       <ThemedView style={styles.achievementsContainer}>
         <View style={styles.sectionHeader}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>achievements</ThemedText>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>Achievements</ThemedText>
           <TouchableOpacity onPress={handleViewAllAchievements}>
-            <ThemedText type="link" style={[styles.viewAll, { color: viewAllColor }]}>view all</ThemedText>
+            <ThemedText type="link" style={[{ color: viewAllColor }]}>view all</ThemedText>
           </TouchableOpacity>
         </View>
         <View style={[styles.achievementsCard, { backgroundColor: achievementCardColor }]}>
@@ -154,34 +290,35 @@ export default function HomeScreen() {
 
       <ThemedView style={styles.discoveryContainer}>
         <View style={styles.sectionHeader}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>discover</ThemedText>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>Discover</ThemedText>
           <TouchableOpacity onPress={handleViewAllDiscover}>
-            <ThemedText type="link" style={[styles.viewAll, { color: viewAllColor }]}>view all</ThemedText>
+            <ThemedText type="link" style={[{ color: viewAllColor }]}>view all</ThemedText>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.discoveryItem} onPress={() => handlePress('Visit the Green\'s Windmill')}>
-          <Image source={require('@/assets/images/greens-windmill.jpg')} style={styles.image}/>
+        <TouchableOpacity style={styles.discoveryItem} onPress={() => handlePress(landmarks[0].title)}>
+          <Image source={landmarks[0].image} style={styles.image}/>
           <View style={styles.textOverlay}>
-            <ThemedText type="default" style={styles.discoveryTitle}>Visit the Green's Windmill</ThemedText>
-            <TouchableOpacity style={styles.getStartedButton}>
+            <ThemedText type="default" style={styles.discoveryTitle}>{landmarks[0].title}</ThemedText>
+            <TouchableOpacity style={styles.getStartedButton} onPress={() => handleGetStartedPress(landmarks[0])}>
               <ThemedText type="default" style={styles.buttonText}>get started</ThemedText>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-        <View style={styles.discoveryItemRow}>
-          <TouchableOpacity style={styles.discoveryItemLarge} onPress={() => handlePress('Learn about William Booth')}>
-            <Image source={require('@/assets/images/william-booth.png')} style={styles.imageSmall}/>
-            <View style={styles.textOverlaySmall}>
-              <ThemedText type="default" style={styles.discoveryTitleSmall}>Learn about William Booth</ThemedText>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.discoveryItemSmall} onPress={() => handlePress('Hermitage Caves')}>
-            <Image source={require('@/assets/images/caves.png')} style={styles.imageSmall}/>
-            <View style={styles.textOverlaySmall}>
-              <ThemedText type="default" style={styles.discoveryTitleSmall}>Hermitage Caves</ThemedText>
-            </View>
-          </TouchableOpacity>
-        </View>
+        {renderLandmarkRow(1, 2)}
+      </ThemedView>
+
+      {/* Premium Card Section */}
+      <ThemedView style={styles.premiumCardContainer}>
+          <View style={styles.premiumCard}>
+              <ThemedText type="title" style={styles.premiumTitle}>Unlock Premium Features</ThemedText>
+              <ThemedText type="default" style={styles.premiumDescription}>
+                  Get exclusive access to more quizzes, premium content, and advanced features!
+              </ThemedText>
+              <TouchableOpacity style={styles.premiumButton} onPress={handlePremiumPress}>
+                <ThemedText type="button" style={styles.premiumButtonText}>Get Premium</ThemedText>
+              </TouchableOpacity>
+
+          </View>
       </ThemedView>
 
       <Modal
@@ -209,54 +346,9 @@ export default function HomeScreen() {
               <ScrollView>
                 <View style={styles.discoveryContainer}>
                   <View style={styles.sectionHeader}>
-                    <ThemedText type="subtitle" style={styles.sectionTitle}>discover all</ThemedText>
+                    <ThemedText type="subtitle" style={styles.sectionTitle}>Discover all</ThemedText>
                   </View>
-                  <TouchableOpacity style={styles.discoveryItem} onPress={() => handlePress('Visit the Green\'s Windmill')}>
-                    <Image source={require('@/assets/images/greens-windmill.jpg')} style={styles.image}/>
-                    <View style={styles.textOverlay}>
-                      <ThemedText type="default" style={styles.discoveryTitle}>Visit the Green's Windmill</ThemedText>
-                      <TouchableOpacity style={styles.getStartedButton}>
-                        <ThemedText type="default" style={styles.buttonText}>get started</ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.discoveryItemRow}>
-                    <TouchableOpacity style={[styles.discoveryItemLarge, styles.discoveryItemSpacing]} onPress={() => handlePress('Learn about William Booth')}>
-                      <Image source={require('@/assets/images/william-booth.png')} style={styles.imageSmall}/>
-                      <View style={styles.textOverlaySmall}>
-                        <ThemedText type="default" style={styles.discoveryTitleSmall}>Learn about William Booth</ThemedText>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.discoveryItemSmall, styles.discoveryItemSpacing]} onPress={() => handlePress('Hermitage Caves')}>
-                      <Image source={require('@/assets/images/caves.png')} style={styles.imageSmall}/>
-                      <View style={styles.textOverlaySmall}>
-                        <ThemedText type="default" style={styles.discoveryTitleSmall}>Hermitage Caves</ThemedText>
-                      </View>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity style={[styles.discoveryItem, styles.discoveryItemSpacing]} onPress={() => handlePress('Visit the Sneinton Market')}>
-                    <Image source={require('@/assets/images/sneinton-market.png')} style={styles.image}/>
-                    <View style={styles.textOverlay}>
-                      <ThemedText type="default" style={[styles.discoveryTitle, { color: '#fff' }]}>Visit the Sneinton Market</ThemedText>
-                      <TouchableOpacity style={styles.getStartedButton}>
-                        <ThemedText type="default" style={styles.buttonText}>get started</ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.discoveryItemRow}>
-                    <TouchableOpacity style={[styles.discoveryItemMedium, styles.discoveryItemSpacing]} onPress={() => handlePress('About Saint Stephen’s Church')}>
-                      <Image source={require('@/assets/images/saint-stephens-church.png')} style={styles.imageMedium}/>
-                      <View style={styles.textOverlaySmall}>
-                        <ThemedText type="default" style={styles.discoveryTitleSmall}>About Saint Stephen’s Church</ThemedText>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.discoveryItemMedium, styles.discoveryItemSpacing]} onPress={() => handlePress('What is the Sneinton Dragon?')}>
-                      <Image source={require('@/assets/images/sneinton-dragon.png')} style={styles.imageMedium}/>
-                      <View style={styles.textOverlaySmall}>
-                        <ThemedText type="default" style={styles.discoveryTitleSmall}>What is the Sneinton Dragon?</ThemedText>
-                      </View>
-                    </TouchableOpacity>
-                  </View>
+                  {renderLargeLandmarks()}
                 </View>
               </ScrollView>
             ) : (
@@ -290,8 +382,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 16,
   },
-  profileIcon: {
-    marginRight: 10,
+  guideButtonWrapper: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  guideButton: {
+    backgroundColor: '#212121',
+    left: 10,
+    width: 275,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#00BF6E',
+    minHeight: 48,
+  },
+  guideButtonText: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  guideButtonTail: {
+    backgroundColor: '#212121',
+    position: 'absolute',
+    left: 20,
+    bottom: -6,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#00BF6E',
+  },
+  profileIcon: {},
+  settingsIcon: {
+    marginLeft: 'auto',
   },
   headerText: {
     fontSize: 18,
@@ -310,9 +436,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     marginBottom: 8,
-  },
-  viewAll: {
-    color: '#d3d3d3',
   },
   achievementsCard: {
     padding: 14,
@@ -340,18 +463,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     position: 'relative',
   },
-  discoveryItemSpacing: {
-    marginBottom: 16,
-  },
   discoveryItemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 16,
   },
   discoveryItemLarge: {
     width: '65%',
   },
-  discoveryItemMedium: {
-    width: '47.5%',
+  discoveryItemLargeModal: {
+    width: '100%',
+    marginBottom: 16,
   },
   discoveryItemSmall: {
     width: '30%',
@@ -366,10 +488,61 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 8,
   },
-  imageMedium: {
+  imageLarge: {
+    width: '100%',
+    height: 215,
+    borderRadius: 8,
+  },
+  discoveryCard: {
+    marginBottom: 16,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  card: {
+    backgroundColor: '#212121',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 4,
+    marginBottom: 16,
+  },
+  cardImage: {
     width: '100%',
     height: 180,
-    borderRadius: 8,
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingIcon: {
+    marginRight: 4,
+  },
+  ratingText: {
+    fontSize: 16,
+  },
+  cardDescription: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#555',
+  },
+  cardFooter: {
+    marginTop: 10,
+    alignItems: 'flex-start',
+  },
+  learnMoreText: {
+    color: '#00BF6E',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   textOverlay: {
     position: 'absolute',
@@ -386,6 +559,12 @@ const styles = StyleSheet.create({
     bottom: 8,
     left: 8,
   },
+  textOverlayLarge: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+  },
   discoveryTitle: {
     fontSize: 22,
     flex: 1,
@@ -393,6 +572,10 @@ const styles = StyleSheet.create({
   },
   discoveryTitleSmall: {
     fontSize: 14,
+    color: '#fff',
+  },
+  discoveryTitleLarge: {
+    fontSize: 22,
     color: '#fff',
   },
   getStartedButton: {
@@ -445,4 +628,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
   },
+    // Premium Card styles
+    premiumCardContainer: {
+      padding: 16,
+    },
+    premiumCard: {
+      backgroundColor: '#121212',
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#ccc',
+    },
+    premiumTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      marginBottom: 10,
+    },
+    premiumDescription: {
+      fontSize: 16,
+      color: '#777',
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    premiumButton: {
+      backgroundColor: '#00BF6E',
+      paddingVertical: 10,
+      paddingHorizontal: 30,
+      borderRadius: 25,
+    },
+    premiumButtonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
 });

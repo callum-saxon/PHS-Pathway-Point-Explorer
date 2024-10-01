@@ -1,3 +1,13 @@
+export interface Place {
+  id: string;
+  title: string;
+  coordinate: {
+    latitude: number;
+    longitude: number;
+  };
+  type: 'cafe' | 'restaurant';
+}
+
 export interface Landmark {
   id: string;
   title: string;
@@ -8,23 +18,24 @@ export interface Landmark {
   };
   image: any;
   rating?: number;
+  nearbyPlaces?: Place[];
 }
 
 export const landmarks: Landmark[] = [
   {
     id: '1',
-    title: 'Sneinton Market',
-    description: 'Sneinton Market is a historic market square in the heart of Nottingham, known for its vibrant atmosphere and eclectic mix of independent shops, cafes, and stalls. It has been a focal point for the community since the 19th century.',
+    title: 'Green’s Windmill',
+    description: 'Green’s Windmill is a restored 19th-century tower mill. It was once owned by the mathematical physicist George Green, and it now serves as a museum dedicated to his work and the history of milling.',
     coordinate: {
-      latitude: 52.95470503005084,
-      longitude: -1.137858308814747,
+      latitude: 52.95206805461328,
+      longitude: -1.129385057166798,
     },
-    image: require('@/assets/images/sneinton-market.png'),
-    rating: 4.5,
+    image: require('@/assets/images/greens-windmill.jpg'),
+    rating: 4.7,
   },
   {
     id: '2',
-    title: 'William Booth Statue/Museum',
+    title: 'William Booth Museum',
     description: 'This statue commemorates William Booth, the founder of the Salvation Army. The adjacent museum offers a deep dive into his life, work, and the impact of the Salvation Army on society.',
     coordinate: {
       latitude: 52.95218228920473,
@@ -35,25 +46,36 @@ export const landmarks: Landmark[] = [
   },
   {
     id: '3',
-    title: 'Saint Stephen’s Church',
-    description: 'Saint Stephen’s Church is a beautiful example of Gothic Revival architecture. It has been serving the community since the 19th century and is known for its stunning stained glass windows and tranquil atmosphere.',
+    title: 'Sneinton Hermitage Caves',
+    description: 'The Sneinton Hermitage Caves are a series of man-made caves with a rich history. They were used for various purposes over the centuries and are now an intriguing historical site.',
     coordinate: {
-      latitude: 52.95110314765308,
-      longitude: -1.1315913678468925,
+      latitude: 52.94879513918782,
+      longitude: -1.1311020059251706,
     },
-    image: require('@/assets/images/saint-stephens-church.png'),
-    rating: 4.8,
+    image: require('@/assets/images/caves.png'),
+    rating: 4.5,
   },
   {
     id: '4',
-    title: 'Green’s Windmill',
-    description: 'Green’s Windmill is a restored 19th-century tower mill. It was once owned by the mathematical physicist George Green, and it now serves as a museum dedicated to his work and the history of milling.',
+    title: 'Sneinton Market',
+    description: 'Sneinton Market is a historic market square in the heart of Nottingham, known for its vibrant atmosphere and eclectic mix of independent shops, cafes, and stalls. It has been a focal point for the community since the 19th century.',
     coordinate: {
-      latitude: 52.95206805461328,
-      longitude: -1.129385057166798,
+      latitude: 52.95470503005084,
+      longitude: -1.137858308814747,
     },
-    image: require('@/assets/images/greens-windmill.jpg'),
-    rating: 4.7,
+    image: require('@/assets/images/sneinton-market.png'),
+    rating: 4.5,
+    nearbyPlaces: [
+      {
+        id: 'cafe1',
+        title: 'Café',
+        coordinate: {
+          latitude: 52.954270912794215, 
+          longitude: -1.1382598625817377,
+        },
+        type: 'cafe',
+      },
+    ],
   },
   {
     id: '5',
@@ -123,14 +145,14 @@ export const landmarks: Landmark[] = [
   },
   {
     id: '11',
-    title: 'Sneinton Hermitage Caves',
-    description: 'The Sneinton Hermitage Caves are a series of man-made caves with a rich history. They were used for various purposes over the centuries and are now an intriguing historical site.',
+    title: 'Saint Stephen’s Church',
+    description: 'Saint Stephen’s Church is a beautiful example of Gothic Revival architecture. It has been serving the community since the 19th century and is known for its stunning stained glass windows and tranquil atmosphere.',
     coordinate: {
-      latitude: 52.94879513918782,
-      longitude: -1.1311020059251706,
+      latitude: 52.95110314765308,
+      longitude: -1.1315913678468925,
     },
-    image: require('@/assets/images/caves.png'),
-    rating: 4.5,
+    image: require('@/assets/images/saint-stephens-church.png'),
+    rating: 4.8,
   },
   {
     id: '12',

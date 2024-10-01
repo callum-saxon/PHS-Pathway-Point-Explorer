@@ -15,7 +15,12 @@ function AppStack() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="screens/AIChatScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="screens/quizScreen" options={{ title: 'Quiz' }} />
       <Stack.Screen name="screens/landmarkdetailsScreen" options={{ title: 'Landmark Details' }} />
+      <Stack.Screen name="screens/premiumScreen" options={{ title: 'Premium' }} />
+      <Stack.Screen name="screens/AudioPlayerScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="screens/TourDetailScreen" options={{ headerShown: false }} />
       <Stack.Screen name="screens/profile/ProfileView" options={{ title: 'View Profile' }} />
       <Stack.Screen name="screens/profile/FavoriteLocations" options={{ title: 'Favorite Locations' }} />
       <Stack.Screen name="screens/profile/RecentlyVisited" options={{ title: 'Recently Visited' }} />
