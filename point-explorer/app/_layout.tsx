@@ -21,7 +21,7 @@ function AppStack() {
       <Stack.Screen name="screens/premiumScreen" options={{ title: 'Premium' }} />
       <Stack.Screen name="screens/AudioPlayerScreen" options={{ headerShown: false }} />
       <Stack.Screen name="screens/TourDetailScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="screens/profile/ProfileView" options={{ title: 'View Profile' }} />
+      <Stack.Screen name="screens/profile/ProfileScreen" options={{ title: 'View Profile' }} />
       <Stack.Screen name="screens/profile/FavoriteLocations" options={{ title: 'Favorite Locations' }} />
       <Stack.Screen name="screens/profile/RecentlyVisited" options={{ title: 'Recently Visited' }} />
       <Stack.Screen name="screens/settings/AccountInfo" options={{ title: 'Account Info' }} />

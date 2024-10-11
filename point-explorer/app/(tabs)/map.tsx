@@ -19,6 +19,9 @@ import { Colors } from '@/constants/Colors';
 import { useRoute } from '@react-navigation/native';
 import { useNavigation } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import profileImage from '@/assets/images/profileeg1.png';
+import motherImage from '@/assets/images/mother.png';
+import arrowPickupImage from '@/assets/images/arrow-pickups.png';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -35,6 +38,10 @@ const MapScreen: React.FC = () => {
   const [highlightedLandmark, setHighlightedLandmark] = useState<Landmark | null>(initialLandmark || null);
   const [searchBarActive, setSearchBarActive] = useState(false);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
+  const [motherCoordinate, setMotherCoordinate] = useState(null);
+  const [isMotherModalVisible, setIsMotherModalVisible] = useState(false);
+  const [motherLandmark, setMotherLandmark] = useState<Landmark | null>(null);
+  const allLandmarks = motherLandmark ? [...landmarks, motherLandmark] : landmarks;
   const [zoomLevel, setZoomLevel] = useState(0);
   const [initialRegion, setInitialRegion] = useState<Region | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
@@ -96,6 +103,13 @@ const MapScreen: React.FC = () => {
     };
   });
 
+  const [arrowMarkers, setArrowMarkers] = useState([
+    { id: 'arrow1', coordinate: { latitude: 52.955021424623865, longitude: -1.1330245544918952 } },
+    { id: 'arrow2', coordinate: { latitude: 52.952021424623865, longitude: -1.1360245544918952 } },
+    { id: 'arrow3', coordinate: { latitude: 52.952021424623865, longitude: -1.1340245544918952 } },
+
+  ]);
+
   const handleSheetGesture = (event: { nativeEvent: { translationY: any; }; }) => {
     const translationY = event.nativeEvent.translationY;
     if (translationY > 0) {
@@ -135,59 +149,88 @@ const MapScreen: React.FC = () => {
     }
   };
 
-    useEffect(() => {
-      (async () => {
-          let { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
-              alert('Permission to access location was denied');
-              return;
-          }
-
-          let location = await Location.getCurrentPositionAsync({});
-          const initialRegion = {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: 0.015,
-              longitudeDelta: 0.0121,
-          };
-
-          if (initialLandmark) {
-              const landmarkRegion = {
-                  latitude: initialLandmark.coordinate.latitude,
-                  longitude: initialLandmark.coordinate.longitude,
-                  latitudeDelta: 0.015,
-                  longitudeDelta: 0.0121,
-              };
-              setLocation(landmarkRegion);
-              setInitialRegion(landmarkRegion);
-              setHighlightedLandmark(initialLandmark);
-          } else if (initialLandmarks && initialLandmarks.length > 0) {
-              const landmarkRegion = {
-                  latitude: initialLandmarks[0].coordinate.latitude,
-                  longitude: initialLandmarks[0].coordinate.longitude,
-                  latitudeDelta: 0.015,
-                  longitudeDelta: 0.0121,
-              };
-              setLocation(landmarkRegion);
-              setInitialRegion(landmarkRegion);
-              setHighlightedLandmark(initialLandmarks[0]);
-
-              const userLocation = {
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-              };
-
-              const waypoints = initialLandmarks.map((landmark) => `${landmark.coordinate.latitude},${landmark.coordinate.longitude}`);
-
-              fetchDirections(userLocation, waypoints[waypoints.length - 1], waypoints.slice(0, -1));
-          } else {
-              setLocation(initialRegion);
-              setInitialRegion(initialRegion);
-          }
-      })();
+  useEffect(() => {
+    (async () => {
+      // Request location permissions
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        return;
+      }
+  
+      // Get the user's current location
+      let location = await Location.getCurrentPositionAsync({});
+      const initialRegion = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.0121,
+      };
+  
+      // Handle initial landmark or landmarks if provided via route params
+      if (initialLandmark) {
+        const landmarkRegion = {
+          latitude: initialLandmark.coordinate.latitude,
+          longitude: initialLandmark.coordinate.longitude,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.0121,
+        };
+        setLocation(landmarkRegion);
+        setInitialRegion(landmarkRegion);
+        setHighlightedLandmark(initialLandmark);
+      } else if (initialLandmarks && initialLandmarks.length > 0) {
+        const landmarkRegion = {
+          latitude: initialLandmarks[0].coordinate.latitude,
+          longitude: initialLandmarks[0].coordinate.longitude,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.0121,
+        };
+        setLocation(landmarkRegion);
+        setInitialRegion(landmarkRegion);
+        setHighlightedLandmark(initialLandmarks[0]);
+  
+        const userLocation = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        };
+  
+        const waypoints = initialLandmarks.map(
+          (landmark) => `${landmark.coordinate.latitude},${landmark.coordinate.longitude}`
+        );
+  
+        fetchDirections(userLocation, waypoints[waypoints.length - 1], waypoints.slice(0, -1));
+      } else {
+        // Set the location and initial region to the user's current location
+        setLocation(initialRegion);
+        setInitialRegion(initialRegion);
+      }
+  
+      // **Add the motherCoordinate setting here**
+      if (initialRegion) {
+        const motherCoord = {
+          latitude: initialRegion.latitude + 0.055, // Adjust as needed
+          longitude: initialRegion.longitude + 0.40,
+        };
+        setMotherCoordinate(motherCoord);
+  
+        // Set motherLandmark
+        setMotherLandmark({
+          id: 'mother',
+          title: 'Mother',
+          description: "Your mother's location",
+          coordinate: motherCoord,
+          image: motherImage,
+        });
+      }
+    })();
   }, [initialLandmark, initialLandmarks]);
 
-useEffect(() => {
+  const getLandmarkById = (id) => {
+    if (id === 'mother') return motherLandmark;
+    return landmarks.find((l) => l.id === id);
+  };
+
+  useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
     if (navigationMode) {
@@ -250,6 +293,57 @@ useEffect(() => {
       }
     };
 }, [navigationMode, currentDirectionsLandmarkId, transportMode]);
+
+useEffect(() => {
+  let locationSubscription: Location.LocationSubscription | null = null;
+
+  (async () => {
+    try {
+      // Request permissions
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        return;
+      }
+
+      // Get initial location
+      let location = await Location.getCurrentPositionAsync({});
+      const initialRegion = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.0121,
+      };
+      setUserLocation(initialRegion);
+
+      // Start watching the user's location
+      locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000,
+          distanceInterval: 1,
+        },
+        (newLocation) => {
+          const { latitude, longitude } = newLocation.coords;
+          setUserLocation((prevLocation) => ({
+            ...prevLocation,
+            latitude,
+            longitude,
+          }));
+        }
+      );
+    } catch (error) {
+      console.error('Error setting up location subscription:', error);
+    }
+  })();
+
+  return () => {
+    if (locationSubscription) {
+      locationSubscription.remove();
+    }
+  };
+}, []);
+
 
   useEffect(() => {
     if (initialRegion && mapRef.current) {
@@ -378,15 +472,53 @@ useEffect(() => {
       }
     }
   };
+
+  let cachedOrigin = null;
+  let lastFetchTime = 0;
+  
+  const getUserOrigin = async () => {
+    const now = Date.now();
+    if (cachedOrigin && (now - lastFetchTime) < 5000) { // Cache for 5 seconds
+      return cachedOrigin;
+    }
+    try {
+      const userLocation = await Location.getCurrentPositionAsync({});
+      cachedOrigin = {
+        latitude: userLocation.coords.latitude,
+        longitude: userLocation.coords.longitude,
+      };
+      lastFetchTime = now;
+      return cachedOrigin;
+    } catch (error) {
+      console.error('Error fetching user location:', error);
+      throw error;  // Re-throw the error to be handled by the calling function
+    }
+  };
+
+  const handleMeetUpPress = async () => {
+    try {
+      setIsMotherModalVisible(false);
+  
+      // Use the existing handleDirectionsPress function
+      if (motherLandmark) {
+        await handleDirectionsPress(motherLandmark);
+      }
+    } catch (error) {
+      console.error('Error fetching directions to mother:', error);
+      Alert.alert('Error', 'Failed to get directions to meet up.');
+    }
+  };
+  
   
   const fetchDirections = async (origin, destination, waypoints = []) => {
     try {
       const apiKey = 'AIzaSyBwT5euSmaG7X8epNBW9cT8y3DfvhWcnic';
       const waypointsParam = waypoints.length > 0 ? `&waypoints=${[...new Set(waypoints)].join('|')}` : '';
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=${transportMode}&key=${apiKey}${waypointsParam}`;
-
+  
       const response = await fetch(url);
       const data = await response.json();
+  
       if (data.routes.length) {
         const points = polyline.decode(data.routes[0].overview_polyline.points);
         const routeCoords = points.map(point => ({
@@ -395,7 +527,11 @@ useEffect(() => {
         }));
         setRouteCoordinates(routeCoords);
         setTravelTime(data.routes[0].legs[0].duration.text);
-
+  
+        // Update remainingTime and distanceToDestination
+        setRemainingTime(data.routes[0].legs[0].duration.text);
+        setDistanceToDestination(data.routes[0].legs[0].distance.text);
+  
         const steps = data.routes[0].legs.flatMap((leg, legIndex) =>
           leg.steps.map((step, index) => ({
             key: `${legIndex}-${index}`,
@@ -413,19 +549,62 @@ useEffect(() => {
     } catch (error) {
       alert('Error fetching directions');
       console.error(error);
+      setRemainingTime('Error calculating ETA');
+      setDistanceToDestination('Error calculating distance');
     }
   };
+  
+
+  useEffect(() => {
+    if (waypoints.length > 0) {
+      (async () => {
+        try {
+          let userLocation = await Location.getCurrentPositionAsync({});
+          const origin = {
+            latitude: userLocation.coords.latitude,
+            longitude: userLocation.coords.longitude,
+          };
+          const destinationWaypoint = waypoints[waypoints.length - 1];
+          const [destLat, destLng] = destinationWaypoint.split(',');
+          const destination = {
+            latitude: parseFloat(destLat),
+            longitude: parseFloat(destLng),
+          };
+  
+          const waypointsWithoutDestination = waypoints.slice(0, -1);
+  
+          await fetchDirections(origin, destination, waypointsWithoutDestination);
+  
+          // The fetchDirections function will update remainingTime and distanceToDestination
+        } catch (error) {
+          console.error('Error fetching directions:', error);
+        }
+      })();
+    } else {
+      // Clear the ETA and distance when there are no waypoints
+      setRemainingTime('');
+      setDistanceToDestination('');
+    }
+  }, [waypoints]);
+
+  const etaCache = {};
 
   const fetchETAForLandmark = async (origin, destination) => {
+    const cacheKey = `${origin.latitude.toFixed(4)},${origin.longitude.toFixed(4)}_${destination.latitude},${destination.longitude}_${transportMode}`;
+    if (etaCache[cacheKey]) {
+      return etaCache[cacheKey];
+    }
     try {
       const apiKey = 'AIzaSyBwT5euSmaG7X8epNBW9cT8y3DfvhWcnic';
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=${transportMode}&key=${apiKey}`;
-      
+  
       const response = await fetch(url);
       const data = await response.json();
   
       if (data.routes.length) {
-        return data.routes[0].legs[0].duration.text; // Return the ETA as a string (e.g., "5 mins")
+        const eta = data.routes[0].legs[0].duration.text;
+        etaCache[cacheKey] = eta; // Cache the result
+        return eta;
       } else {
         return 'No ETA available';
       }
@@ -434,26 +613,77 @@ useEffect(() => {
       return 'Error';
     }
   };
-
+  
   useEffect(() => {
     const fetchETAs = async () => {
-      const userLocation = await Location.getCurrentPositionAsync({});
+      try {
+        const origin = await getUserOrigin();
   
-      const updatedLandmarks = await Promise.all(waypoints.map(async (waypoint) => {
-        const landmark = landmarks.find(l => `${l.coordinate.latitude},${l.coordinate.longitude}` === waypoint);
+        const updatedLandmarks = await Promise.all(
+          waypoints.map(async (waypoint) => {
+            const landmark = landmarks.find(
+              (l) => `${l.coordinate.latitude},${l.coordinate.longitude}` === waypoint
+            );
   
-        if (landmark) {
-          const eta = await fetchETAForLandmark(userLocation.coords, landmark.coordinate);
-          return { ...landmark, eta };  // Attach ETA to the landmark object
-        }
-        return null;
-      }));
+            if (landmark) {
+              const eta = await fetchETAForLandmark(origin, landmark.coordinate);
+              return { ...landmark, eta }; // Attach ETA to the landmark object
+            }
+            return null;
+          })
+        );
   
-      setLandmarksWithETA(updatedLandmarks.filter(Boolean));  // Update state to include ETA
+        setLandmarksWithETA(updatedLandmarks.filter(Boolean)); // Update state to include ETA
+      } catch (error) {
+        console.error('Error fetching ETAs:', error);
+        Alert.alert('Error', 'Failed to fetch estimated times of arrival.');
+      }
     };
   
     fetchETAs();
-  }, [waypoints]);
+  }, [waypoints, transportMode]);
+
+  const animateMapToCoordinate = (coordinate, duration = 1000, delta = 0.005) => {
+    const region = {
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      latitudeDelta: delta,
+      longitudeDelta: delta,
+    };
+    if (mapRef.current) {
+      mapRef.current.animateToRegion(region, duration);
+    }
+  };
+
+  const setInitialNavigationLandmark = (landmarkId) => {
+    if (!initialNavigationLandmarkId) {
+      setInitialNavigationLandmarkId(landmarkId);
+    }
+  };
+  
+  const updateStateAfterDirectionsFetch = (landmark) => {
+    setExploreSheetOpen(false);
+    translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
+  
+    fadeAnim.value = withTiming(
+      0,
+      { duration: 300, easing: Easing.linear },
+      () => {
+        runOnJS(setDirectionButtonPressed)(true);
+        runOnJS(setCurrentDirectionsLandmarkId)(landmark.id);
+        runOnJS(setWaypoints)([]); // Clear waypoints or adjust as needed
+  
+        fadeAnim.value = withTiming(1, { duration: 300, easing: Easing.linear });
+      }
+    );
+  
+    setInitialNavigationLandmark(landmark.id);
+    animateMapToCoordinate(landmark.coordinate);
+    setHighlightedLandmark(landmark);
+    setBottomSheetOpen(false);
+  };
+  
+  
 
   const handleDirectionsPress = async (landmark: Landmark) => {
     if (currentDirectionsLandmarkId && currentDirectionsLandmarkId !== landmark.id) {
@@ -465,52 +695,16 @@ useEffect(() => {
             text: "Individually",
             onPress: async () => {
               try {
-                const userLocation = await Location.getCurrentPositionAsync({});
-                const origin = {
-                  latitude: userLocation.coords.latitude,
-                  longitude: userLocation.coords.longitude,
-                };
+                const origin = await getUserOrigin();
                 const destination = {
                   latitude: landmark.coordinate.latitude,
                   longitude: landmark.coordinate.longitude,
                 };
                 await fetchDirections(origin, destination);
-                setExploreSheetOpen(false);
-                translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
-
-                fadeAnim.value = withTiming(0, {
-                  duration: 300,
-                  easing: Easing.linear,
-                }, () => {
-                  runOnJS(setDirectionButtonPressed)(true);
-                  runOnJS(setCurrentDirectionsLandmarkId)(landmark.id);
-                  runOnJS(setWaypoints)([]); // Clear waypoints
-
-                  fadeAnim.value = withTiming(1, {
-                    duration: 300,
-                    easing: Easing.linear,
-                  });
-                });
-
-                // Set the initial navigation landmark if it's not already set
-                if (!initialNavigationLandmarkId) {
-                  setInitialNavigationLandmarkId(landmark.id);
-                }
-
-                // Zoom in on the landmark and open the info card
-                const zoomedRegion = {
-                  latitude: landmark.coordinate.latitude,
-                  longitude: landmark.coordinate.longitude,
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
-                };
-                if (mapRef.current) {
-                  mapRef.current.animateToRegion(zoomedRegion, 1000);
-                }
-                setHighlightedLandmark(landmark);
-                setBottomSheetOpen(false); // Close landmark info card
+                updateStateAfterDirectionsFetch(landmark);
               } catch (error) {
                 console.error('Error fetching user location:', error);
+                Alert.alert('Error', 'Failed to get your current location.');
               }
             },
           },
@@ -518,42 +712,38 @@ useEffect(() => {
             text: "Add to Tour",
             onPress: async () => {
               try {
-                const userLocation = await Location.getCurrentPositionAsync({});
-                const origin = {
-                  latitude: userLocation.coords.latitude,
-                  longitude: userLocation.coords.longitude,
-                };
+                const origin = await getUserOrigin();
                 const destination = {
                   latitude: landmark.coordinate.latitude,
                   longitude: landmark.coordinate.longitude,
                 };
+  
                 // Include the current landmark with active directions as a waypoint
                 const currentLandmark = landmarks.find(l => l.id === currentDirectionsLandmarkId);
-                const currentLandmarkWaypoint = currentLandmark ? `${currentLandmark.coordinate.latitude},${currentLandmark.coordinate.longitude}` : null;
-                const newWaypoints = currentLandmarkWaypoint ? [...new Set([...waypoints, currentLandmarkWaypoint, `${landmark.coordinate.latitude},${landmark.coordinate.longitude}`])] : [`${landmark.coordinate.latitude},${landmark.coordinate.longitude}`];
+                const currentLandmarkWaypoint = currentLandmark
+                  ? `${currentLandmark.coordinate.latitude},${currentLandmark.coordinate.longitude}`
+                  : null;
+  
+                const newWaypoints = currentLandmarkWaypoint
+                  ? [
+                      ...new Set([
+                        ...waypoints,
+                        currentLandmarkWaypoint,
+                        `${landmark.coordinate.latitude},${landmark.coordinate.longitude}`,
+                      ]),
+                    ]
+                  : [`${landmark.coordinate.latitude},${landmark.coordinate.longitude}`];
+  
                 await fetchDirections(origin, destination, newWaypoints);
-                runOnJS(setWaypoints)(newWaypoints); // Update waypoints
-                runOnJS(setCurrentDirectionsLandmarkId)(landmark.id);
-
-                // Set the initial navigation landmark if it's not already set
-                if (!initialNavigationLandmarkId) {
-                  setInitialNavigationLandmarkId(landmark.id);
-                }
-
-                // Zoom in on the landmark and open the info card
-                const zoomedRegion = {
-                  latitude: landmark.coordinate.latitude,
-                  longitude: landmark.coordinate.longitude,
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
-                };
-                if (mapRef.current) {
-                  mapRef.current.animateToRegion(zoomedRegion, 1000);
-                }
+                setWaypoints(newWaypoints);
+                setCurrentDirectionsLandmarkId(landmark.id);
+                setInitialNavigationLandmark(landmark.id);
+                animateMapToCoordinate(landmark.coordinate);
                 setHighlightedLandmark(null);
-                setBottomSheetOpen(false); // Close landmark info card
+                setBottomSheetOpen(false);
               } catch (error) {
                 console.error('Error adding landmark to tour:', error);
+                Alert.alert('Error', 'Failed to add landmark to tour.');
               }
             },
           },
@@ -566,55 +756,20 @@ useEffect(() => {
       );
     } else {
       try {
-        const userLocation = await Location.getCurrentPositionAsync({});
-        const origin = {
-          latitude: userLocation.coords.latitude,
-          longitude: userLocation.coords.longitude,
-        };
+        const origin = await getUserOrigin();
         const destination = {
           latitude: landmark.coordinate.latitude,
           longitude: landmark.coordinate.longitude,
         };
         await fetchDirections(origin, destination);
-        setExploreSheetOpen(false);
-        translateYExplore.value = withSpring(exploreSheetFullHeight, { damping: 15, stiffness: 100 });
-
-        fadeAnim.value = withTiming(0, {
-          duration: 300,
-          easing: Easing.linear,
-        }, () => {
-          runOnJS(setDirectionButtonPressed)(true);
-          runOnJS(setCurrentDirectionsLandmarkId)(landmark.id);
-          runOnJS(setWaypoints)([]);
-
-          fadeAnim.value = withTiming(1, {
-            duration: 300,
-            easing: Easing.linear,
-          });
-        });
-
-        // Set the initial navigation landmark if it's not already set
-        if (!initialNavigationLandmarkId) {
-          setInitialNavigationLandmarkId(landmark.id);
-        }
-
-        // Zoom in on the landmark and open the info card
-        const zoomedRegion = {
-          latitude: landmark.coordinate.latitude,
-          longitude: landmark.coordinate.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        };
-        if (mapRef.current) {
-          mapRef.current.animateToRegion(zoomedRegion, 1000);
-        }
-        setHighlightedLandmark(landmark);
-        setBottomSheetOpen(false); // Close landmark info card
+        updateStateAfterDirectionsFetch(landmark);
       } catch (error) {
         console.error('Error fetching user location:', error);
+        Alert.alert('Error', 'Failed to get your current location.');
       }
     }
   };
+  
 
   const handleExitNavPress = () => {
     setNavigationMode(false);
@@ -637,14 +792,14 @@ useEffect(() => {
 
   const handleCloseLandmarkCard = async () => {
     try {
-      const userLocation = await Location.getCurrentPositionAsync({});
+      const origin = await getUserOrigin();
       const initialRegion = {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
+        latitude: origin.latitude,
+        longitude: origin.longitude,
         latitudeDelta: 0.015,
         longitudeDelta: 0.0121,
       };
-
+  
       if (currentDirectionsLandmarkId && highlightedLandmark && highlightedLandmark.id === currentDirectionsLandmarkId) {
         // If closing the landmark card for the landmark with active directions, reset directions
         setRouteCoordinates([]);
@@ -654,21 +809,22 @@ useEffect(() => {
         setDistanceToDestination('');
         setRemainingTime('');
         setWaypoints([]);
-
+  
         setLocation(initialRegion);
         if (mapRef.current) {
           mapRef.current.animateToRegion(initialRegion, 1000);
         }
       }
-
+  
       setHighlightedLandmark(null);
-
+  
       translateY.value = withSpring(bottomSheetFullHeight, { damping: 15, stiffness: 100 });
       setBottomSheetOpen(false);
     } catch (error) {
       console.error('Error resetting map position:', error);
+      Alert.alert('Error', 'Failed to reset map position.');
     }
-  };
+  };  
 
   const handleExplorePress = () => {
     setSearch('');
@@ -1168,11 +1324,7 @@ useEffect(() => {
 
   const addLandmarkToTour = async (landmark) => {
     try {
-      const userLocation = await Location.getCurrentPositionAsync({});
-      const origin = {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
-      };
+      const origin = await getUserOrigin();
       const destination = {
         latitude: landmark.coordinate.latitude,
         longitude: landmark.coordinate.longitude,
@@ -1218,31 +1370,32 @@ useEffect(() => {
         waypoint => waypoint !== `${landmark.coordinate.latitude},${landmark.coordinate.longitude}`
       );
       setWaypoints(updatedWaypoints);
-
+  
       if (currentDirectionsLandmarkId === landmark.id) {
         setCurrentDirectionsLandmarkId(null);
       }
-
-      const userLocation = await Location.getCurrentPositionAsync({});
-      const origin = {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
-      };
-
+  
+      const origin = await getUserOrigin();
+  
       if (updatedWaypoints.length > 0) {
+        const lastWaypoint = updatedWaypoints[updatedWaypoints.length - 1];
+        const [destLat, destLng] = lastWaypoint.split(',');
         const destination = {
-          latitude: updatedWaypoints[updatedWaypoints.length - 1].split(',')[0],
-          longitude: updatedWaypoints[updatedWaypoints.length - 1].split(',')[1],
+          latitude: parseFloat(destLat),
+          longitude: parseFloat(destLng),
         };
-        await fetchDirections(origin, destination, updatedWaypoints);
+        await fetchDirections(origin, destination, updatedWaypoints.slice(0, -1));
       } else {
         setRouteCoordinates([]);
         setDirections([]);
+        setRemainingTime('');
+        setDistanceToDestination('');
       }
     } catch (error) {
       console.error('Error removing landmark from tour:', error);
+      Alert.alert('Error', 'Failed to remove landmark from tour.');
     }
-  };
+  };  
 
   const renderLandmarkItem = ({ item }) => {
     if (item.id === initialNavigationLandmarkId) {
@@ -1392,7 +1545,7 @@ useEffect(() => {
             ref={mapRef}
             style={styles.map}
             initialRegion={initialRegion}
-            showsUserLocation={true}
+            showsUserLocation={false}
             showsMyLocationButton={false}
             showsCompass={false}
             onPress={handleMapPress}
@@ -1406,6 +1559,33 @@ useEffect(() => {
             customMapStyle={colorScheme === 'light' ? lightMapStyle : darkMapStyle}
             rotateEnabled={true}
           >
+            {userLocation && (
+              <Marker coordinate={userLocation}>
+                <View style={styles.userMarkerContainer}>
+                  <Image source={profileImage} style={styles.userMarkerImage} />
+                </View>
+              </Marker>
+            )}
+            {motherCoordinate && (
+              <Marker
+                coordinate={motherCoordinate}
+                onPress={() => {
+                  setIsMotherModalVisible(true);
+                }}
+              >
+                <View style={styles.circularMarkerContainer}>
+                  <Image source={motherImage} style={styles.circularMarkerImage} />
+                </View>
+              </Marker>
+            )}
+            {arrowMarkers.map((arrow) => (
+              <Marker
+                key={arrow.id}
+                coordinate={arrow.coordinate}
+              >
+                <Image source={arrowPickupImage} style={styles.arrowImage} />
+              </Marker>
+            ))}
             {landmarks.map((landmark: Landmark) => {
               const isActiveDirectionLandmark = waypoints.includes(`${landmark.coordinate.latitude},${landmark.coordinate.longitude}`) || currentDirectionsLandmarkId === landmark.id;
               return (
@@ -1479,6 +1659,31 @@ useEffect(() => {
           <MaterialIcons name="save-alt" size={24} color={highlightColor} />
         </TouchableOpacity>
       )}
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isMotherModalVisible}
+        onRequestClose={() => setIsMotherModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: backgroundColor }]}>
+            <Text style={styles.modalTitle}>Meet Up</Text>
+            <Text style={[styles.modalText, { color: TextColor }]}>
+              Would you like to meet up with your mother?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalButton} onPress={() => setIsMotherModalVisible(false)}>
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalButton} onPress={handleMeetUpPress}>
+                <Text style={[styles.modalButtonText]}>Meet up!</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
 
       <Modal
         animationType="slide"
@@ -1599,11 +1804,11 @@ useEffect(() => {
                   onPress={() => setIsCurrentLandmarkCardExpanded(!isCurrentLandmarkCardExpanded)}
                 >
                   <Text style={[styles.currentLandmarkText, { color: TextColor }]}>
-                    Navigating to: {landmarks.find(l => l.id === currentDirectionsLandmarkId)?.title}
+                    Navigating to: {getLandmarkById(currentDirectionsLandmarkId)?.title}
                   </Text>
                   {isCurrentLandmarkCardExpanded && (
                     <FlatList
-                      data={landmarksWithETA} // Use landmarksWithETA instead of waypoints
+                      data={landmarksWithETA}
                       keyExtractor={(item) => item.id}
                       renderItem={({ item }) => (
                         <View style={styles.currentLandmarkItem}>
@@ -1851,6 +2056,37 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
     bottom: -75,
+  },
+  userMarkerContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userMarkerImage: {
+    width: 40, // Adjust the size as needed
+    height: 40,
+    borderRadius: 20, // Make it circular
+    borderWidth: 2,
+    borderColor: '#fff', // Optional border color
+  },
+  circularMarkerContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circularMarkerImage: {
+    width: 40, // Adjust the size as needed
+    height: 40,
+    borderRadius: 20, // Make it circular
+    borderWidth: 2,
+    borderColor: '#fff', // Optional border color
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  arrowImage: {
+    width: 35, // Adjust the size as needed
+    height: 35,
+    resizeMode: 'contain',
   },
   customMarker: {
     width: 20,

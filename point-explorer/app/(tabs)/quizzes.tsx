@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Text, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useThemeColor } from '@/hooks/useThemeColor';  // Import theme color hook
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { useColorScheme } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // For storing high scores
-import { quizzes } from '../../components/quizData'; // Import quiz data
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { quizzes } from '../../components/quizData';
+// **Import FontAwesome from Expo vector icons**
+import { FontAwesome } from '@expo/vector-icons';
 
 const getTodayDayNumber = () => {
   const now = new Date();
@@ -47,19 +49,44 @@ export default function QuizGridScreen() {
     return unsubscribe;
   }, [navigation]);
 
+  // **Function to render stars based on high score**
+  const renderStars = (score) => {
+    const stars = [];
+    for (let i = 0; i < 5; i++) {
+      stars.push(
+        <FontAwesome
+          key={i}
+          name={i < score ? 'star' : 'star-o'}
+          size={20}
+          color="#00BF6E"
+          style={{ marginHorizontal: 2 }}
+        />
+      );
+    }
+    return <View style={{ flexDirection: 'row', marginTop: 5 }}>{stars}</View>;
+  };
+
   const renderQuizItem = ({ item, index }) => {
     const quizUnlocked = index + 1 <= dayNumber;
     const highScore = highScores[item.name] || 0;
 
     return (
       <TouchableOpacity
-        style={[styles.quizButton, quizUnlocked ? styles.unlockedQuiz : styles.lockedQuiz]}
+        style={[
+          styles.quizButton,
+          quizUnlocked ? styles.unlockedQuiz : styles.lockedQuiz,
+        ]}
         onPress={() => quizUnlocked && handleQuizPress(item.name)}
         disabled={!quizUnlocked}
       >
         <Text style={styles.quizText}>{item.name}</Text>
         <Text style={styles.quizStatus}>{quizUnlocked ? 'Unlocked' : 'Locked'}</Text>
-        {quizUnlocked && <Text style={styles.highScore}>High Score: {highScore}</Text>}
+        {quizUnlocked && (
+          // **Display stars instead of numerical high score**
+          <View style={styles.highScore}>
+            {renderStars(highScore)}
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -122,8 +149,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   highScore: {
+    flexDirection: 'row',
     marginTop: 5,
-    fontSize: 16,
-    color: '#fff',
   },
 });

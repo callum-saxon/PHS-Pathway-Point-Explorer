@@ -16,6 +16,8 @@ import { useNavigation } from 'expo-router';
 import { landmarks } from '@/components/Landmarks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import WelcomeScreen from '../screens/welcomeScreen';
+import profileImage from '@/assets/images/profileeg1.png';
+import arrowImage from '@/assets/images/arrow-pickups.png';
 
 export default function HomeScreen() {
   const [isModalVisible, setModalVisible] = useState(false);
@@ -46,6 +48,8 @@ export default function HomeScreen() {
   const deletingSpeed = 50; // Adjust deleting speed
   const delayBeforeDelete = 2000; // Delay before starting to delete text
 
+  const [profileImageUri, setProfileImageUri] = useState(null); // Add state for profile image URI
+
   const quizzes = [
     { id: 1, title: 'Quiz 1: History of Landmarks', description: 'Test your knowledge of famous landmarks!' },
     { id: 2, title: 'Quiz 2: Cultural Heritage', description: 'How well do you know world cultures?' },
@@ -62,6 +66,20 @@ export default function HomeScreen() {
       };
     }, [])
   );
+
+  useEffect(() => {
+    const loadProfileImage = async () => {
+      const imageUri = await AsyncStorage.getItem('profileImage');
+      if (imageUri) {
+        setProfileImageUri(imageUri);
+      }
+    };
+
+    const unsubscribe = navigation.addListener('focus', loadProfileImage);
+
+    return unsubscribe;
+  }, [navigation]);
+
 
   useEffect(() => {
     let timeoutId;
@@ -88,6 +106,42 @@ export default function HomeScreen() {
 
     return () => clearTimeout(timeoutId); // Clean up timeout on unmount
   }, [typedText, isDeleting, guideTextIndex]);
+
+  const [quests, setQuests] = useState([
+    {
+      id: 1,
+      title: "Collect arrows on your journey to Green's Windmill",
+      endTime: new Date('2024-10-14T12:00:00'),
+      arrowsCollected: 2, // Replace with the actual number of arrows collected
+      totalArrows: 5,
+    },
+  ]);
+
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getTimeRemaining = (endTime) => {
+    const total = endTime - now;
+    const seconds = Math.floor((total / 1000) % 60);
+    const minutes = Math.floor((total / 1000 / 60) % 60);
+    const hours = Math.floor((total / (1000 * 60 * 60)) % 24);
+    const days = Math.floor(total / (1000 * 60 * 60 * 24));
+
+    return {
+      total,
+      days,
+      hours,
+      minutes,
+      seconds,
+    };
+  };
+  
 
   const handleQuizPress = (quizName) => {
     // Navigate to the quiz screen based on the quiz selected
@@ -253,7 +307,13 @@ export default function HomeScreen() {
     <ScrollView style={[styles.container, { backgroundColor }]}>
       <View style={styles.headerContainer}>
         <View style={styles.header}>
-          <MaterialCommunityIcons name="face-man-profile" size={42} color={iconColor} style={styles.profileIcon} />
+          <TouchableOpacity onPress={() => navigation.navigate('screens/profile/ProfileScreen')}>
+            {profileImageUri ? (
+              <Image source={{ uri: profileImageUri }} style={[styles.profileIcon, {borderColor: highlightColor}] } />
+            ) : (
+              <Image source={profileImage} style={styles.profileIcon} />
+            )}
+          </TouchableOpacity>
           <TouchableOpacity style={styles.guideButtonWrapper} onPress={handleGuideButtonPress} activeOpacity={0.7}>
             <View style={styles.guideButton}>
               <ThemedText type="default" style={styles.guideButtonText}>
@@ -288,6 +348,37 @@ export default function HomeScreen() {
         </View>
       </ThemedView>
 
+      <ThemedView style={styles.questsContainer}>
+        <View style={styles.sectionHeader}>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>Quests</ThemedText>
+        </View>
+        <View style={[styles.questCard, { backgroundColor: achievementCardColor }]}>
+          <View style={styles.questList}>
+            {quests.map((quest) => {
+              const timeRemaining = getTimeRemaining(quest.endTime);
+              return (
+                <View key={quest.id} style={styles.questItem}>
+                  {/* Arrow Image and Progress */}
+                  <View style={styles.arrowContainer}>
+                    <Image source={arrowImage} style={styles.arrowImage} />
+                    <ThemedText type="default" style={styles.arrowCountText}>
+                      {quest.arrowsCollected}/{quest.totalArrows}
+                    </ThemedText>
+                  </View>
+                  {/* Quest Text and Timer */}
+                  <View style={styles.questTextContainer}>
+                    <ThemedText type="default" style={styles.questText}>{quest.title}</ThemedText>
+                    <ThemedText type="default" style={styles.timerText}>
+                      Time Left: {timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m {timeRemaining.seconds}s
+                    </ThemedText>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </ThemedView>
+      
       <ThemedView style={styles.discoveryContainer}>
         <View style={styles.sectionHeader}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>Discover</ThemedText>
@@ -382,6 +473,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 16,
   },
+  profileIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 30, // Make it circular
+    borderWidth: 2,
+  },
   guideButtonWrapper: {
     position: 'relative',
     alignSelf: 'flex-start',
@@ -415,7 +512,6 @@ const styles = StyleSheet.create({
     borderRightColor: 'transparent',
     borderTopColor: '#00BF6E',
   },
-  profileIcon: {},
   settingsIcon: {
     marginLeft: 'auto',
   },
@@ -456,6 +552,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
   },
+  questsContainer: {
+    paddingHorizontal: 16,
+  },
+  questCard: {
+    padding: 14,
+    borderRadius: 8,
+  },
+  questList: {
+    // Add any additional styles if needed
+  },
+  questItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  
+  arrowContainer: {
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  
+  arrowImage: {
+    width: 40,
+    height: 40,
+  },
+  
+  arrowCountText: {
+    fontSize: 14,
+    color: 'gray',
+    marginTop: 4,
+  },
+  
+  questTextContainer: {
+    flex: 1,
+  },
+  
+  questText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  
+  timerText: {
+    fontSize: 14,
+    color: 'gray',
+  },
+  
   discoveryContainer: {
     padding: 16,
   },

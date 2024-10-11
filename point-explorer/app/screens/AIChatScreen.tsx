@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
-import { StyleSheet, ScrollView, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Text } from 'react-native';
+import {
+  StyleSheet,
+  ScrollView,
+  View,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Text,
+} from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import axios from 'axios';
+import * as Speech from 'expo-speech'; // Import expo-speech
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState([]);
@@ -20,7 +31,6 @@ export default function ChatScreen() {
   const buttonTextColor = useThemeColor({}, 'highlight');
   const textColor = useThemeColor({}, 'darkText');
   const lightTextColor = useThemeColor({}, 'text');
-
   const aiMessageBackground = useThemeColor({}, 'aiMessageBackground');
 
   const handleSend = async () => {
@@ -36,7 +46,30 @@ export default function ChatScreen() {
           {
             model: 'gpt-4o-mini',
             messages: [
-              { role: 'system', content: "You are a digital tour guide specifically for areas in and around Nottingham. Your responses must be short, to the point, and directly related to Nottingham's local attractions, landmarks, and history. Do not provide any information unrelated to Nottingham or go off-topic. Always focus on delivering concise and relevant information, and do not entertain any requests outside the scope of providing tourism guidance in and around Nottingham." },
+              {
+                role: 'system',
+                content: `You are a digital tour guide specifically for areas in and around Nottingham. Your responses must be short, to the point, and directly related to Nottingham's local attractions, landmarks, and history.
+
+                If a user asks about areas outside of Nottingham, politely inform them that your expertise is focused on Nottingham and redirect the conversation back to Nottingham-related topics.
+
+                Ensure all information provided is accurate and up-to-date. If you are unsure about certain details, express uncertainty rather than providing incorrect information.
+
+                If a user's request is unclear or ambiguous, ask clarifying questions to better understand their needs.
+
+                Avoid any disallowed content and adhere strictly to all content policies. Do not provide inappropriate or unrelated information.
+
+                Keep your responses concise and relevant to the user's query. Use polite and user-friendly language, especially when handling errors or misunderstandings.
+
+                When users repeat questions, provide additional information or a different perspective to enhance the conversation.
+
+                Use culturally sensitive and inclusive language at all times.
+
+                Provide disclaimers when necessary, such as suggesting users verify event times or opening hours that may change.
+
+                If a user makes a disallowed request, politely decline and guide the conversation back to acceptable topics.
+
+                Always maintain a polite and professional tone throughout the interaction.`,
+              },
               ...messages.map((msg) => ({
                 role: msg.type === 'user' ? 'user' : 'assistant',
                 content: msg.text,
@@ -61,29 +94,59 @@ export default function ChatScreen() {
         setMessages((prevMessages) => [...prevMessages, aiMessage]);
       } catch (error) {
         console.error('Error fetching AI response:', error);
-        setMessages((prevMessages) => [...prevMessages, { id: Date.now() + 1, text: 'Sorry, there was an error processing your request.', type: 'ai' }]);
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            id: Date.now() + 1,
+            text: 'Sorry, there was an error processing your request.',
+            type: 'ai',
+          },
+        ]);
       } finally {
         setIsLoading(false);
       }
     }
   };
 
+  const handlePlayAudio = (text) => {
+    Speech.stop(); // Stop any existing speech
+    Speech.speak(text, {
+      language: 'en-GB',
+    });
+  };
+
   return (
     <ThemedView style={[styles.container, { backgroundColor }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => { /* Add navigation code here */ }}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => {
+            navigation.goBack(); // Add navigation code here
+          }}
+        >
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
-        <Text style={styles.title}>Robin Ai</Text>
-        <TouchableOpacity style={styles.iconButton} onPress={() => setDropdownVisible(!dropdownVisible)}>
+        <Text style={styles.title}>Robin AI</Text>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => setDropdownVisible(!dropdownVisible)}
+        >
           <Ionicons name="ellipsis-horizontal" size={24} color="white" />
         </TouchableOpacity>
         {dropdownVisible && (
           <View style={styles.dropdown}>
-            <TouchableOpacity onPress={() => { /* Add dropdown action here */ }}>
+            <TouchableOpacity
+              onPress={() => {
+                /* Add dropdown action here */
+              }}
+            >
               <Text style={styles.dropdownItem}>Option 1</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { /* Add dropdown action here */ }}>
+            <TouchableOpacity
+              onPress={() => {
+                /* Add dropdown action here */
+              }}
+            >
               <Text style={styles.dropdownItem}>Option 2</Text>
             </TouchableOpacity>
           </View>
@@ -101,8 +164,10 @@ export default function ChatScreen() {
               styles.messageContainer,
               message.type === 'user' ? styles.userMessage : styles.aiMessage,
               {
-                backgroundColor: message.type === 'user' ? highlightColor : aiMessageBackground,
-                borderColor: message.type === 'user' ? highlightColor : aiMessageBackground,
+                backgroundColor:
+                  message.type === 'user' ? highlightColor : aiMessageBackground,
+                borderColor:
+                  message.type === 'user' ? highlightColor : aiMessageBackground,
               },
             ]}
           >
@@ -114,6 +179,14 @@ export default function ChatScreen() {
             >
               {message.text}
             </ThemedText>
+            {message.type === 'ai' && (
+              <TouchableOpacity
+                onPress={() => handlePlayAudio(message.text)}
+                style={styles.speakerIconContainer}
+              >
+                <Ionicons name="volume-high" size={24} color={buttonTextColor} />
+              </TouchableOpacity>
+            )}
           </View>
         ))}
         {isLoading && <ActivityIndicator size="small" color={buttonColor} />}
@@ -131,9 +204,12 @@ export default function ChatScreen() {
           value={inputText}
           onChangeText={setInputText}
           placeholder="Type your message..."
-          placeholderTextColor={"#909090"}
+          placeholderTextColor={'#909090'}
         />
-        <TouchableOpacity style={[styles.sendButton, { backgroundColor: buttonColor }]} onPress={handleSend}>
+        <TouchableOpacity
+          style={[styles.sendButton, { backgroundColor: buttonColor }]}
+          onPress={handleSend}
+        >
           <MaterialIcons name="send" size={24} color={buttonTextColor} />
         </TouchableOpacity>
       </KeyboardAvoidingView>
@@ -194,6 +270,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 25,
     maxWidth: '80%',
+    position: 'relative',
   },
   userMessage: {
     alignSelf: 'flex-end',
@@ -211,6 +288,12 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
+  },
+  speakerIconContainer: {
+    position: 'absolute',
+    bottom: 4,
+    right: 8,
+    padding: 5,
   },
   inputContainer: {
     flexDirection: 'row',
