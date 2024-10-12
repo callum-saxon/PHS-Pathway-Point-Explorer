@@ -9,6 +9,10 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import WelcomeScreen from './screens/welcomeScreen';
 
+import './i18n'; // Import the i18n configuration
+import { I18nextProvider } from 'react-i18next';
+import i18n from './i18n'; // Import initialized i18n
+
 SplashScreen.preventAutoHideAsync();
 
 function AppStack() {
@@ -60,11 +64,13 @@ function RootLayoutInner() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      {showWelcome ? (
-        <WelcomeScreen onFinish={handleFinishWelcome} />
-      ) : (
-        <AppStack />
-      )}
+      <I18nextProvider i18n={i18n}>
+        {showWelcome ? (
+          <WelcomeScreen onFinish={handleFinishWelcome} />
+        ) : (
+          <AppStack />
+        )}
+      </I18nextProvider>
     </ThemeProvider>
   );
 }

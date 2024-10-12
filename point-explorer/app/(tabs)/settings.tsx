@@ -7,6 +7,7 @@ import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { useColorScheme } from 'react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
@@ -14,13 +15,15 @@ export default function SettingsScreen() {
   const iconColor = '#ffffff';
   const textColor = useThemeColor({}, 'text');
   const navigation = useNavigation();
+  const { t } = useTranslation();
+
 
   const settingsOptions = [
     { title: 'Account Info', icon: 'user-cog', iconType: FontAwesome5, screen: 'screens/settings/AccountInfo' },
     { title: 'Change Password', icon: 'key', iconType: FontAwesome5, screen: 'screens/settings/ChangePassword' },
     { title: 'Privacy Settings', icon: 'user-shield', iconType: FontAwesome5, screen: 'screens/settings/PrivacySettings' },
     { title: 'Notification Settings', icon: 'bell', iconType: FontAwesome5, screen: 'screens/settings/NotificationSettings' },
-    { title: 'Language', icon: 'globe', iconType: FontAwesome5, screen: 'screens/settings/Language' },
+    { title: t('language'), icon: 'globe', iconType: FontAwesome5, screen: 'screens/settings/Language' },
     { title: 'Connected Apps', icon: 'link', iconType: FontAwesome5, screen: 'screens/settings/ConnectedApps' },
     { title: 'Help & Support', icon: 'info-circle', iconType: FontAwesome5, screen: 'screens/settings/HelpSupport' },
   ];

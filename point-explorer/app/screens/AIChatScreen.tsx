@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Text,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -19,6 +20,7 @@ import axios from 'axios';
 import * as Speech from 'expo-speech'; // Import expo-speech
 
 export default function ChatScreen() {
+  const navigation = useNavigation(); // Use navigation hook here
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
